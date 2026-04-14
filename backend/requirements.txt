@@ -1,0 +1,13 @@
+langchain
+langchain-google-genai
+google-generativeai
+langchain-community
+langgraph
+faiss-cpu
+python-dotenv
+pydantic
+fastapi
+uvicorn
+python-multipart
+pymupdf
+pymupdf4llm

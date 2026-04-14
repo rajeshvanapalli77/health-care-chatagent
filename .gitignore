@@ -1,0 +1,8 @@
+.venv/
+backend/.env
+frontend/node_modules/
+backend/__pycache__/
+backend/chroma_chat_db/
+backend/faiss_index_google/
+backend/extracted_images/
+frontend/.env.local
