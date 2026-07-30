@@ -1,0 +1,7 @@
+backend/
+.venv/
+venv/
+extracted_images/
+faiss_index_google/
+chroma_chat_db/
+uploads/
