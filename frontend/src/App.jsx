@@ -154,6 +154,8 @@ function App() {
     }
   };
 
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   return (
     <div className="flex h-screen w-full bg-white overflow-hidden font-sans text-gray-800">
       <Sidebar 
@@ -162,6 +164,8 @@ function App() {
         onCreateNewChat={createNewChat}
         onSelectChat={setCurrentChatId}
         onDeleteChat={deleteChat}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
       
       {currentChat ? (
@@ -174,6 +178,7 @@ function App() {
           isLoading={isLoading}
           currentChat={currentChat}
           onClearSession={clearSessionBackendMemory}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center bg-[#F8FAFC]">

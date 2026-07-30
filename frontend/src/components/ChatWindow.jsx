@@ -11,7 +11,8 @@ const ChatWindow = ({
   handleFileUpload, 
   isLoading, 
   currentChat,
-  onClearSession 
+  onClearSession,
+  onToggleMobileSidebar 
 }) => {
   const messagesEndRef = useRef(null);
 
@@ -24,7 +25,11 @@ const ChatWindow = ({
       {/* Mobile Header / Top Bar */}
       <div className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shrink-0 z-10 sticky top-0">
         <div className="flex items-center gap-3">
-          <button className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+          <button 
+            onClick={onToggleMobileSidebar}
+            className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg active:bg-gray-200 transition-colors"
+            title="Open Consultations"
+          >
             <Menu size={20} />
           </button>
           <div className="flex flex-col">
