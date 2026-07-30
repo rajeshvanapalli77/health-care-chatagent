@@ -11,3 +11,4 @@ uvicorn
 python-multipart
 pymupdf
 pymupdf4llm
+chromadb
