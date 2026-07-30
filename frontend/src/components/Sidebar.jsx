@@ -12,7 +12,10 @@ const Sidebar = ({ chats, currentChatId, onCreateNewChat, onSelectChat, onDelete
         </div>
         <div>
           <h1 className="font-bold text-gray-900 tracking-tight text-lg">Healthcare AI</h1>
-          <p className="text-xs text-gray-500 font-medium tracking-wide">MEDICAL PORTAL</p>
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-500 font-medium tracking-wide">MEDICAL PORTAL</span>
+            <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase mt-0.5">by Vanapalli Rajesh</span>
+          </div>
         </div>
       </div>
 
@@ -52,9 +55,10 @@ const Sidebar = ({ chats, currentChatId, onCreateNewChat, onSelectChat, onDelete
       </div>
 
       {/* Footer Profile or Settings (Optional Placeholder) */}
-      <div className="p-4 border-t border-gray-100 text-xs text-center text-gray-400 flex flex-col items-center gap-1">
-         Secure & Encrypted Session
+      <div className="p-4 border-t border-gray-100 text-xs text-center text-gray-400 flex flex-col items-center gap-1.5">
+         <span>Secure & Encrypted Session</span>
          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">HIPAA COMPLIANT</span>
+         <span className="text-[10px] text-gray-400 font-medium mt-1">© 2026 Vanapalli Rajesh</span>
       </div>
     </div>
   );
