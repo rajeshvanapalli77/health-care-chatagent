@@ -1,8 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
 .venv/
+backend/.venv/
+backend/venv/
+*.env
 backend/.env
-frontend/node_modules/
-backend/__pycache__/
+
+# Vector Stores & Data
 backend/chroma_chat_db/
+backend/faiss_index/
 backend/faiss_index_google/
 backend/extracted_images/
-frontend/.env.local
+
+# Uploads
+backend/uploads/
+*.pdf
+*.docx
+*.jpg
+*.png
+*.webp
+!screenshot.png
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+node_modules/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

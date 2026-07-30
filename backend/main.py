@@ -10,14 +10,20 @@ import uvicorn
 load_dotenv()
 
 from agents.graph import app as graph_app
+from agents.controller import invoke_controller
 from rag.pipeline import ingest_complex_document
-from database import add_message_to_history, get_chat_history_str
+from database import add_message_to_history, get_chat_history_str, patient_files_store, add_patient_file
 
 app = FastAPI(title="Healthcare RAG API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +52,7 @@ async def chat_endpoint(request: ChatRequest):
         # 2. Run graph predicting context and history
         result = graph_app.invoke({
             "question": request.query,
+            "session_id": request.session_id,
             "chat_history": chat_history
         })
         
@@ -77,12 +84,50 @@ async def upload_document(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         print(f"📄 Processing multimodal document: {file_path}")
-        chunks_added = ingest_complex_document(file_path)
+        result_payload = ingest_complex_document(file_path, uploader_type="HOSPITAL_ADMIN", mime_type=file.content_type)
         
-        return {
-            "message": f"Successfully parsed {file.filename} including charts & tables.", 
-            "chunks_created": chunks_added
-        }
+        return result_payload
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+class ControllerPayload(BaseModel):
+    command_type: str
+    session_id: str
+    file_id: str = None
+    message_id: str = None
+
+@app.post("/api/controller")
+async def controller_endpoint(payload: ControllerPayload):
+    try:
+        response = invoke_controller(payload.command_type, payload.model_dump(), payload.session_id)
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/patient-upload")
+async def patient_upload(session_id: str, file: UploadFile = File(...)):
+    if not os.environ.get("GOOGLE_API_KEY") or os.environ.get("GOOGLE_API_KEY") == "your_gemini_api_key_here":
+        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY is missing.")
+        
+    try:
+        os.makedirs("uploads", exist_ok=True)
+        file_path = f"uploads/{file.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        print(f"👤 Processing patient attachment: {file_path}")
+        result_payload = ingest_complex_document(file_path, uploader_type="PATIENT", mime_type=file.content_type)
+        
+        if result_payload.get("status") != "REJECTED":
+            # Save strictly to memory logic!
+            add_patient_file(session_id, result_payload)
+            # Add implicit chat message so Assistant knows about the file
+            add_message_to_history(session_id, "user", f"[User uploaded personal file: {file.filename}]")
+            file_response_msg = f"Your file {file.filename} was securely processed for this session only.\n\nSummary:\n{result_payload.get('extracted_data', {}).get('raw_text_summary')}"
+            add_message_to_history(session_id, "assistant", file_response_msg)
+            result_payload["chat_acknowledgement"] = file_response_msg
+            
+        return result_payload
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 

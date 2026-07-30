@@ -1,120 +1,183 @@
-import React, { useState, useRef, useEffect } from 'react';
-import './App.css';
+import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
+import ChatWindow from './components/ChatWindow';
 
 function App() {
-  const [messages, setMessages] = useState([
-    {
-      text: "Hello! I am your AI Health Assistant. How can I help you today? You can describe your symptoms in English, Hindi, or any other language, or upload medical reports for analysis.",
-      isUser: false,
-      isEmergency: false
-    }
-  ]);
+  const [chats, setChats] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-  const sessionIdRef = useRef(`session-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Initialize from LocalStorage
+  useEffect(() => {
+    const savedChats = localStorage.getItem('healthcare_chats');
+    if (savedChats) {
+      const parsed = JSON.parse(savedChats);
+      setChats(parsed);
+      if (parsed.length > 0) setCurrentChatId(parsed[0].id);
+    } else {
+      createNewChat();
+    }
+  }, []);
+
+  // Sync to LocalStorage
+  useEffect(() => {
+    if (chats.length > 0) {
+      localStorage.setItem('healthcare_chats', JSON.stringify(chats));
+    } else {
+      localStorage.removeItem('healthcare_chats');
+    }
+  }, [chats]);
+
+  const currentChat = chats.find(c => c.id === currentChatId);
+
+  const createNewChat = () => {
+    const newChat = {
+      id: `session-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      title: "New Consultation",
+      updatedAt: Date.now(),
+      messages: [{
+        text: "Hello! I am your AI Health Assistant. How can I help you today? You can describe your symptoms, or securely upload your medical reports for analysis.",
+        isUser: false,
+        timestamp: Date.now()
+      }]
+    };
+    setChats(prev => [newChat, ...prev]);
+    setCurrentChatId(newChat.id);
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const deleteChat = (id) => {
+    setChats(prev => prev.filter(c => c.id !== id));
+    if (currentChatId === id) {
+      const remaining = chats.filter(c => c.id !== id);
+      if (remaining.length > 0) {
+        setCurrentChatId(remaining[0].id);
+      } else {
+        createNewChat();
+      }
+    }
+  };
+
+  // Safe updater for messages inside the active chat
+  const addMessageToCurrentChat = (newMessage, customTitle = null) => {
+    setChats(prevChats => prevChats.map(chat => {
+      if (chat.id === currentChatId) {
+        const isFirstUserMessage = newMessage.isUser && chat.messages.filter(m => m.isUser).length === 0;
+        return {
+          ...chat,
+          messages: [...chat.messages, { ...newMessage, timestamp: Date.now() }],
+          title: customTitle || (isFirstUserMessage ? newMessage.text.substring(0, 30) + '...' : chat.title),
+          updatedAt: Date.now()
+        };
+      }
+      return chat;
+    }));
+  };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !currentChatId) return;
 
-    const userMessage = { text: input, isUser: true };
-    setMessages(prev => [...prev, userMessage]);
+    const userText = input;
     setInput('');
+    addMessageToCurrentChat({ text: userText, isUser: true });
     setIsLoading(true);
 
     try {
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: input, session_id: sessionIdRef.current })
+        body: JSON.stringify({ query: userText, session_id: currentChatId })
       });
 
       const data = await response.json();
       
       if (response.ok) {
-        setMessages(prev => [...prev, { 
+        addMessageToCurrentChat({ 
           text: data.response, 
           isUser: false, 
           isEmergency: data.is_emergency 
-        }]);
+        });
       } else {
-        setMessages(prev => [...prev, { 
-          text: `Error: ${data.detail || 'Something went wrong'}`, 
-          isUser: false 
-        }]);
+        addMessageToCurrentChat({ text: `❌ Error: ${data.detail || 'Internal Server Error'}`, isUser: false });
       }
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        text: "Connection error. Is the backend running on http://localhost:8000?", 
-        isUser: false 
-      }]);
-      console.error(error);
+      addMessageToCurrentChat({ text: "Connection error. Is the backend running on http://localhost:8000?", isUser: false });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file || !currentChatId) return;
 
+    addMessageToCurrentChat({ text: `📎 Processing attachment: **${file.name}**...`, isUser: true }, `Uploaded: ${file.name}`);
+    setIsLoading(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/patient-upload?session_id=${currentChatId}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (response.ok && data.status !== "REJECTED") {
+        addMessageToCurrentChat({ text: data.chat_acknowledgement, isUser: false });
+      } else {
+        addMessageToCurrentChat({ text: `❌ Attachment rejected: ${data.rejection_reason || 'Unknown error'}`, isUser: false });
+      }
+    } catch (error) {
+      addMessageToCurrentChat({ text: "Upload failed. Connection error.", isUser: false });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearSessionBackendMemory = async () => {
+    if(!currentChatId) return;
+    try {
+      const response = await fetch('http://localhost:8000/api/controller', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command_type: 'CLEAR_SESSION', session_id: currentChatId })
+      });
+      if(response.ok) {
+         addMessageToCurrentChat({text: "⚠️ System memory actively wiped for this session per HIPAA compliance rules. You may start fresh.", isUser: false});
+      }
+    } catch(err) {
+      console.error("Failed to clear backend memory", err);
+    }
+  };
 
   return (
-    <div className="app-container">
-      <div className="blob"></div>
-      <header className="glass-panel">
-        <div className="header-title">
-          <h1>HealthCare AI</h1>
-          <p>Premium Multilingual Medical Support</p>
+    <div className="flex h-screen w-full bg-white overflow-hidden font-sans text-gray-800">
+      <Sidebar 
+        chats={chats}
+        currentChatId={currentChatId}
+        onCreateNewChat={createNewChat}
+        onSelectChat={setCurrentChatId}
+        onDeleteChat={deleteChat}
+      />
+      
+      {currentChat ? (
+        <ChatWindow 
+          messages={currentChat.messages}
+          input={input}
+          setInput={setInput}
+          handleSend={handleSend}
+          handleFileUpload={handleFileUpload}
+          isLoading={isLoading}
+          currentChat={currentChat}
+          onClearSession={clearSessionBackendMemory}
+        />
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-[#F8FAFC]">
+           <div className="text-gray-400">Loading Patient Portal...</div>
         </div>
-        <div className="header-actions">
-          {/* Postman is used for RAG file uploading in this version. */}
-        </div>
-      </header>
-
-      <main className="chat-container glass-panel">
-        <div className="messages" id="messages">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`message ${msg.isUser ? 'user-message' : 'assistant-message'} ${msg.isEmergency ? 'emergency-alert' : ''}`}>
-              <div className="avatar">{msg.isUser ? '👤' : '🏥'}</div>
-              <div className="bubble" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }}></div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="message assistant-message">
-              <div className="avatar">🏥</div>
-              <div className="bubble">
-                <div className="typing-dots">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-        
-        <div className="input-area">
-          <input 
-            type="text" 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Describe symptoms or ask health questions..." 
-            autoComplete="off" 
-          />
-          <button id="send-btn" onClick={handleSend} disabled={isLoading}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
-        </div>
-      </main>
+      )}
     </div>
   );
 }

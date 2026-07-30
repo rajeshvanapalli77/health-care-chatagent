@@ -6,7 +6,12 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_community.vectorstores import FAISS
 from langchain_core.messages import HumanMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 import pymupdf4llm
+from prompts.system_prompts import UNIVERSAL_MEDICAL_FILE_PROCESSOR_PROMPT
+import time
+import uuid
 
 FAISS_DB_DIR = os.path.join(os.path.dirname(__file__), "..", "faiss_index_google")
 
@@ -15,10 +20,10 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 def describe_image(image_path):
-    """Use Gemini 1.5 Flash Vision to describe an extracted chart or image."""
+    """Use Gemini Vision to describe an extracted chart or image."""
     try:
-        # Gemini 1.5 Flash supports both text and vision natively
-        llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", max_output_tokens=300)
+        model_name = os.getenv("LLM_MODEL_NAME", "gemini-2.0-flash")
+        llm = ChatGoogleGenerativeAI(model=model_name, max_output_tokens=300)
         base64_image = encode_image(image_path)
         msg = HumanMessage(
             content=[
@@ -35,14 +40,14 @@ def describe_image(image_path):
         print(f"Vision API error on {image_path}: {e}")
         return "Image could not be resolved."
 
-def ingest_complex_document(file_path: str):
+def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN", mime_type: str = "application/pdf"):
     """
-    Ingest a PDF using pymupdf4llm (Markdown + Tables preserved).
-    Extracts images, runs Vision API on them, and saves to FAISS.
+    Universal ingest flow tracking both Admin and Patient uploads identically.
     """
-    # Create dir for images
     img_dir = os.path.join(os.path.dirname(__file__), "..", "extracted_images")
     os.makedirs(img_dir, exist_ok=True)
+    
+    file_size = f"{os.path.getsize(file_path) / 1024:.2f} KB"
     
     # 1. Extract markdown and images (saving them to disk temporarily)
     md_text = pymupdf4llm.to_markdown(file_path, write_images=True, image_path=img_dir)
@@ -50,48 +55,78 @@ def ingest_complex_document(file_path: str):
     # 2. Process all image tags logically via Vision API
     def replace_image_with_vision(match):
         img_filename = match.group(1)
-        
-        # Absolute resolution
         img_path = img_filename if os.path.isabs(img_filename) else os.path.join(img_dir, os.path.basename(img_filename))
             
         if os.path.exists(img_path):
             print(f"👀 Utilizing Gemini Vision AI for chart/image: {img_path}")
-            description = describe_image(img_path)
-            return f"\n\n[DIAGRAM/CHART EXTRACTED DATA]: {description}\n\n"
+            return f"\n\n[DIAGRAM/CHART EXTRACTED DATA]: {describe_image(img_path)}\n\n"
         return ""
 
-    # Matches ![alt](img_path)
     processed_md = re.sub(r'!\[.*?\]\((.*?)\)', replace_image_with_vision, md_text)
     
-    # 3. Chunk using splitters mindful of markdown/tables
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1200, 
-        chunk_overlap=200,
-        separators=["\n## ", "\n### ", "\n\n", "\n", " ", ""]
+    # Take chunk of text to prevent massive parsing overload
+    model_name = os.getenv("LLM_MODEL_NAME", "gemini-1.5-flash")
+    temperature = float(os.getenv("LLM_TEMPERATURE", 0))
+    admin_llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+    prompt = PromptTemplate(
+        template=UNIVERSAL_MEDICAL_FILE_PROCESSOR_PROMPT,
+        input_variables=["filename", "mime_type", "file_size", "uploader_type", "extracted_content"]
     )
-    chunks = splitter.split_text(processed_md)
-    docs = [Document(page_content=chunk, metadata={"source": os.path.basename(file_path)}) for chunk in chunks]
+    chain = prompt | admin_llm | JsonOutputParser()
     
-    # 4. Save to FAISS persistently
-    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
-    if os.path.exists(FAISS_DB_DIR):
-        vector_store = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
-        vector_store.add_documents(docs)
-    else:
-        vector_store = FAISS.from_documents(docs, embeddings)
+    try:
+        doc_metadata = chain.invoke({
+            "filename": os.path.basename(file_path),
+            "mime_type": mime_type,
+            "file_size": file_size,
+            "uploader_type": uploader_type,
+            "extracted_content": processed_md[:4000]
+        })
+    except Exception as e:
+        print(f"Failed to extract universal document metadata: {e}")
+        return {"status": "REJECTED", "rejection_reason": "Failed to parse document structure via LLM"}
         
-    vector_store.save_local(FAISS_DB_DIR)
-    return len(docs)
+    if doc_metadata.get("status") == "REJECTED":
+        return doc_metadata
+    
+    if "timestamp" in doc_metadata.get("file_id", "") or not doc_metadata.get("file_id"):
+        prefix = "HOSP" if uploader_type == "HOSPITAL_ADMIN" else "PAT-SESSION"
+        doc_metadata["file_id"] = f"{prefix}-{str(uuid.uuid4())[:8]}"
+    
+    # Route logic natively
+    if uploader_type == "HOSPITAL_ADMIN" and doc_metadata.get("ready_for_rag"):
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=200)
+        chunks = splitter.split_text(processed_md)
+        
+        metadata_payload = {
+            "source": os.path.basename(file_path),
+            "document_type": doc_metadata.get("medical_document_type", "UNKNOWN"),
+            "title": doc_metadata.get("extracted_data", {}).get("title", "Untitled Document"),
+            "file_id": doc_metadata.get("file_id")
+        }
+        
+        docs = [Document(page_content=c, metadata=metadata_payload) for c in chunks]
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+        if os.path.exists(FAISS_DB_DIR):
+            vector_store = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
+            vector_store.add_documents(docs)
+        else:
+            vector_store = FAISS.from_documents(docs, embeddings)
+            
+        vector_store.save_local(FAISS_DB_DIR)
+        doc_metadata["chunks_created"] = len(docs)
+
+    return doc_metadata
 
 def setup_retriever():
     """Load or initialize FAISS vector store and return a retriever."""
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key or api_key == "your_gemini_api_key_here":
-        print("⚠️ Warning: No Google API Key found. RAG functionality will be disabled until key is provided.")
+        print("[WARNING] No Google API Key found. RAG functionality will be disabled until key is provided.")
         return None
 
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
         
         if os.path.exists(FAISS_DB_DIR):
             vector_store = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
@@ -102,5 +137,5 @@ def setup_retriever():
         vector_store = FAISS.from_documents(docs, embeddings)
         return vector_store.as_retriever(search_kwargs={"k": 1})
     except Exception as e:
-        print(f"⚠️ Failed to initialize retriever: {e}")
+        print(f"[ERROR] Failed to initialize retriever: {e}")
         return None
