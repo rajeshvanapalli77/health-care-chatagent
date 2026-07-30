@@ -74,6 +74,8 @@ function App() {
     }));
   };
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   const handleSend = async () => {
     if (!input.trim() || !currentChatId) return;
 
@@ -83,7 +85,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userText, session_id: currentChatId })
@@ -101,7 +103,7 @@ function App() {
         addMessageToCurrentChat({ text: `❌ Error: ${data.detail || 'Internal Server Error'}`, isUser: false });
       }
     } catch (error) {
-      addMessageToCurrentChat({ text: "Connection error. Is the backend running on http://localhost:8000?", isUser: false });
+      addMessageToCurrentChat({ text: `Connection error. Is the backend running on ${API_BASE_URL}?`, isUser: false });
     } finally {
       setIsLoading(false);
     }
@@ -118,7 +120,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/patient-upload?session_id=${currentChatId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/patient-upload?session_id=${currentChatId}`, {
         method: 'POST',
         body: formData
       });
@@ -139,7 +141,7 @@ function App() {
   const clearSessionBackendMemory = async () => {
     if(!currentChatId) return;
     try {
-      const response = await fetch('http://localhost:8000/api/controller', {
+      const response = await fetch(`${API_BASE_URL}/api/controller`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command_type: 'CLEAR_SESSION', session_id: currentChatId })
