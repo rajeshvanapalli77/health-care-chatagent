@@ -97,7 +97,14 @@ function App() {
         body: JSON.stringify({ query: userText, session_id: currentChatId })
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response (${response.status})`);
+      }
       
       if (response.ok) {
         addMessageToCurrentChat({ 
@@ -109,7 +116,7 @@ function App() {
         addMessageToCurrentChat({ text: `❌ Error: ${data.detail || 'Internal Server Error'}`, isUser: false });
       }
     } catch (error) {
-      addMessageToCurrentChat({ text: `Connection error. Is the backend running on ${API_BASE_URL}?`, isUser: false });
+      addMessageToCurrentChat({ text: `Connection error (${error.message}). Is the backend running on ${API_BASE_URL || 'localhost:8000'}?`, isUser: false });
     } finally {
       setIsLoading(false);
     }
@@ -131,14 +138,23 @@ function App() {
         body: formData
       });
 
-      const data = await response.json();
-      if (response.ok && data.status !== "REJECTED") {
-        addMessageToCurrentChat({ text: data.chat_acknowledgement, isUser: false });
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
       } else {
-        addMessageToCurrentChat({ text: `❌ Attachment rejected: ${data.rejection_reason || 'Unknown error'}`, isUser: false });
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response (${response.status})`);
+      }
+
+      if (response.ok && data.status !== "REJECTED") {
+        addMessageToCurrentChat({ text: data.chat_acknowledgement || "File uploaded and processed successfully.", isUser: false });
+      } else {
+        addMessageToCurrentChat({ text: `❌ Attachment rejected: ${data.rejection_reason || data.detail || 'Unknown processing error'}`, isUser: false });
       }
     } catch (error) {
-      addMessageToCurrentChat({ text: "Upload failed. Connection error.", isUser: false });
+      console.error("Upload Error:", error);
+      addMessageToCurrentChat({ text: `Upload failed: ${error.message || "Connection error."}`, isUser: false });
     } finally {
       setIsLoading(false);
     }

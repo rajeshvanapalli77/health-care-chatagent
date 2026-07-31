@@ -123,8 +123,12 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
             # Save strictly to memory logic!
             add_patient_file(session_id, result_payload)
             # Add implicit chat message so Assistant knows about the file asynchronously
-            user_msg = f"[User uploaded personal file: {file.filename}]"
-            file_response_msg = f"Your file {file.filename} was securely processed for this session only.\n\nSummary:\n{result_payload.get('extracted_data', {}).get('raw_text_summary')}"
+            summary_text = result_payload.get('extracted_data', {}).get('raw_text_summary')
+            if not summary_text:
+                full_txt = result_payload.get('full_extracted_text', '')
+                summary_text = full_txt[:300] + "..." if len(full_txt) > 300 else full_txt
+                
+            file_response_msg = f"Your file **{file.filename}** was securely processed for this session only.\n\n**Extracted Summary & Key Findings:**\n{summary_text}"
             
             background_tasks.add_task(add_message_to_history, session_id, "user", user_msg)
             background_tasks.add_task(add_message_to_history, session_id, "assistant", file_response_msg)
@@ -133,10 +137,21 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
             
         return result_payload
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        print(f"[PATIENT UPLOAD ERROR] {e}")
+        raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(e)}")
 
 
-# Feedback & Reviews Models and API Endpoints
+class AdminAuthRequest(BaseModel):
+    passcode: str
+
+@app.post("/api/admin/verify-passcode")
+async def verify_admin_passcode(payload: AdminAuthRequest):
+    expected_password = os.environ.get("ADMIN_PASSWORD", "rajesh@123")
+    if payload.passcode.strip() == expected_password.strip():
+        return {"authenticated": True, "token": "admin_verified_session"}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid admin passcode.")
+
 class FeedbackCreate(BaseModel):
     name: str = "Anonymous Patient"
     email: str = ""
@@ -148,6 +163,7 @@ class FeedbackCreate(BaseModel):
 class FeedbackUpdate(BaseModel):
     status: str = None
     admin_notes: str = None
+
 
 @app.post("/api/feedback")
 async def submit_feedback(payload: FeedbackCreate):

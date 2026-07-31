@@ -1,13 +1,49 @@
-import React, { useRef } from 'react';
-import { Send, Paperclip, Loader2, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Send, Paperclip, Loader2, Sparkles, Mic, MicOff } from 'lucide-react';
 
 const InputBox = ({ input, setInput, handleSend, handleFileUpload, isLoading }) => {
   const fileInputRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
 
   const onKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const toggleVoiceDictation = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setInput(transcript);
+      };
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+
+      recognition.start();
+    } catch (e) {
+      console.error("Speech dictation error:", e);
+      setIsListening(false);
     }
   };
 
@@ -40,10 +76,26 @@ const InputBox = ({ input, setInput, handleSend, handleFileUpload, isLoading }) 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyPress}
-          placeholder="Describe your symptoms or upload a report..."
-          className="flex-1 max-h-36 min-h-[44px] bg-transparent py-2.5 px-2 text-slate-800 placeholder-slate-400 resize-none outline-none leading-relaxed text-sm sm:text-[15px]"
+          placeholder={isListening ? "Listening... Speak your symptoms now..." : "Describe your symptoms or upload a report..."}
+          className={`flex-1 max-h-36 min-h-[44px] bg-transparent py-2.5 px-2 text-slate-800 placeholder-slate-400 resize-none outline-none leading-relaxed text-sm sm:text-[15px] ${
+            isListening ? 'placeholder-teal-600 font-medium animate-pulse' : ''
+          }`}
           rows={1}
         />
+
+        {/* Voice Dictation Button */}
+        <button
+          onClick={toggleVoiceDictation}
+          disabled={isLoading}
+          className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all flex-shrink-0 ${
+            isListening
+              ? 'bg-rose-500 text-white animate-pulse'
+              : 'text-slate-400 hover:text-teal-600 hover:bg-teal-50'
+          }`}
+          title={isListening ? "Stop Listening" : "Voice Dictation (Speech to Text)"}
+        >
+          {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+        </button>
 
         {/* Send Button */}
         <button

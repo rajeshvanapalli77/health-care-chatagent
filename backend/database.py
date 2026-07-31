@@ -26,7 +26,16 @@ def get_patient_files_context(session_id: str) -> str:
     
     context = []
     for f in patient_files_store[session_id]:
-        context.append(f"File Type: {f.get('medical_document_type')}\nExtracted Data: {f.get('extracted_data', {})}\nID: {f.get('file_id')}")
+        doc_type = f.get('medical_document_type', 'UNKNOWN')
+        file_id = f.get('file_id', 'UNKNOWN')
+        ext_data = f.get('extracted_data', {})
+        full_text = f.get('full_extracted_text', '')
+        
+        entry = f"--- UPLOADED PATIENT FILE: {file_id} (Type: {doc_type}) ---\n"
+        entry += f"Structured Summary: {ext_data}\n"
+        if full_text:
+            entry += f"Full Document/OCR Content:\n{full_text[:3500]}\n"
+        context.append(entry)
     return "\n\n".join(context)
 
 def clear_session_data(session_id: str):

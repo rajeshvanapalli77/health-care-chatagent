@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Stethoscope, AlertTriangle } from 'lucide-react';
+import { User, Stethoscope, AlertTriangle, Volume2, VolumeX, Copy, Check } from 'lucide-react';
 
 const formatMarkdown = (text) => {
   if (!text) return '';
@@ -33,6 +33,35 @@ const MessageBubble = ({ message }) => {
   const isEmergency = message.isEmergency;
   const htmlContent = formatMarkdown(message.text);
 
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!message.text) return;
+    navigator.clipboard.writeText(message.text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSpeech = () => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const cleanText = message.text.replace(/[*#_~]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -53,7 +82,7 @@ const MessageBubble = ({ message }) => {
       </div>
 
       {/* Bubble Content */}
-      <div className="flex flex-col gap-1 max-w-full min-w-0">
+      <div className="flex flex-col gap-1 max-w-full min-w-0 group">
         <div className="text-[10px] text-slate-400 font-semibold tracking-wide px-1 flex items-center gap-2" style={{ alignSelf: isUser ? 'flex-end' : 'flex-start' }}>
           <span>{isUser ? 'You' : 'Healthcare AI'}</span>
           {message.timestamp && <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
@@ -67,8 +96,32 @@ const MessageBubble = ({ message }) => {
             }
             ${isEmergency ? '!bg-rose-50/90 !border-rose-200 !text-rose-950 !rounded-tl-xs ring-2 ring-rose-300/40' : ''}
           `}
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
+        >
+          <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+
+          {/* Action Toolbar for AI Messages */}
+          {!isUser && (
+            <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-100/80 text-slate-400 opacity-80 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={handleSpeech}
+                className="p-1 sm:p-1.5 rounded-lg hover:text-teal-600 hover:bg-teal-50 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                title={isSpeaking ? "Stop Voice Readout" : "Listen to Advice (Speech Synthesis)"}
+              >
+                {isSpeaking ? <VolumeX size={14} className="text-rose-500 animate-pulse" /> : <Volume2 size={14} />}
+                <span>{isSpeaking ? "Stop" : "Listen"}</span>
+              </button>
+
+              <button
+                onClick={handleCopy}
+                className="p-1 sm:p-1.5 rounded-lg hover:text-teal-600 hover:bg-teal-50 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                title="Copy Message"
+              >
+                {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                <span>{copied ? "Copied" : "Copy"}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );

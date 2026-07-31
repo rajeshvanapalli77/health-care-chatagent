@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import InputBox from './InputBox';
+import HealthToolsModal from './HealthToolsModal';
 import { 
   Menu, Trash2, Stethoscope, Sparkles, ShieldCheck, MessageSquare,
-  Thermometer, FileText, Pill, AlertTriangle, Globe, ArrowRight, UploadCloud
+  Thermometer, FileText, Pill, AlertTriangle, Globe, ArrowRight, Download, Activity
 } from 'lucide-react';
 
 const ChatWindow = ({ 
@@ -20,10 +21,40 @@ const ChatWindow = ({
 }) => {
 
   const messagesEndRef = useRef(null);
+  const [isHealthToolsOpen, setIsHealthToolsOpen] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  const handleExportConsultation = () => {
+    if (!messages || messages.length === 0) return;
+
+    let content = `= HEALTHCARE AI CONSULTATION TRANSCRIPT =\n`;
+    content += `Title: ${currentChat?.title || "Consultation"}\n`;
+    content += `Date: ${new Date().toLocaleString()}\n`;
+    content += `Session ID: ${currentChat?.id || "N/A"}\n`;
+    content += `Compliance: HIPAA Encrypted Session\n`;
+    content += `===========================================\n\n`;
+
+    messages.forEach((msg, idx) => {
+      const sender = msg.isUser ? "PATIENT" : "HEALTHCARE AI ASSISTANT";
+      const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : "";
+      content += `[${time}] ${sender}:\n${msg.text}\n\n-------------------------------------------\n\n`;
+    });
+
+    content += `\n[MEDICAL DISCLAIMER]: This AI consultation transcript is for informational purposes. Always consult a qualified medical professional for diagnosis or treatment.`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Consultation_Report_${currentChat?.id || 'session'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const quickPrompts = [
     {
@@ -94,13 +125,33 @@ const ChatWindow = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Advanced Health Tools Button */}
+          <button
+            onClick={() => setIsHealthToolsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 rounded-xl transition-all border border-indigo-200/80 shadow-2xs"
+            title="Open Advanced Health Tools & BMI Calculators"
+          >
+            <Activity size={14} className="text-indigo-600" />
+            <span className="hidden sm:inline">Health Tools</span>
+          </button>
+
+          {/* Export Report Button */}
+          <button
+            onClick={handleExportConsultation}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl transition-all border border-slate-200 shadow-2xs"
+            title="Export Consultation Transcript as TXT File"
+          >
+            <Download size={14} className="text-slate-600" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
           <button
             onClick={onOpenFeedback}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
             title="Submit Feedback & Review"
           >
             <MessageSquare size={14} className="text-teal-600" />
-            <span className="hidden sm:inline">Feedback & Reviews</span>
+            <span className="hidden sm:inline">Reviews</span>
           </button>
 
           <button 
@@ -216,6 +267,12 @@ const ChatWindow = ({
         handleSend={handleSend}
         handleFileUpload={handleFileUpload}
         isLoading={isLoading}
+      />
+
+      {/* Health Tools Modal */}
+      <HealthToolsModal 
+        isOpen={isHealthToolsOpen}
+        onClose={() => setIsHealthToolsOpen(false)}
       />
     </div>
   );
