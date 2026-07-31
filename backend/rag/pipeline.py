@@ -35,6 +35,24 @@ def optimize_image_for_vision(image_path, max_dim=1024):
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8'), "image/jpeg"
 
+def extract_clean_text(content):
+    """Extract clean string text from LangChain response content (handles list of dicts, strings, etc.)."""
+    if not content:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif isinstance(item, str):
+                parts.append(item)
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
 def describe_image(image_path, prompt_override=None):
     """Use Gemini Vision to OCR documents and analyze physical injury/symptom photos with automatic multi-model quota fallback."""
     base64_image, image_mime = optimize_image_for_vision(image_path)
@@ -70,8 +88,10 @@ def describe_image(image_path, prompt_override=None):
             print(f"[VISION] Attempting OCR with model: {model_name}")
             llm = ChatGoogleGenerativeAI(model=model_name, max_output_tokens=2048, max_retries=1)
             response = llm.invoke([msg])
-            if response and response.content and "RESOURCE_EXHAUSTED" not in response.content:
-                return response.content
+            if response and response.content:
+                clean_txt = extract_clean_text(response.content)
+                if clean_txt and "RESOURCE_EXHAUSTED" not in clean_txt:
+                    return clean_txt
         except Exception as e:
             print(f"[VISION MODEL ERROR - {model_name}] {e}")
             last_err = e

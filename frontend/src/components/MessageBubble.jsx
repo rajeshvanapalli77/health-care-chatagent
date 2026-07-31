@@ -2,13 +2,40 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Stethoscope, AlertTriangle, Volume2, VolumeX, Copy, Check } from 'lucide-react';
 
+const sanitizeText = (raw) => {
+  if (!raw) return '';
+  let str = String(raw);
+
+  // If text starts with Python list representation e.g. [{'type': 'text', 'text': '...'}]
+  if (str.trim().startsWith("[{'type': 'text'") || str.trim().startsWith('[{"type": "text"')) {
+    try {
+      const matches = [...str.matchAll(/['"]text['"]\s*:\s*['"]((?:\\.|[^'"])*)['"]/g)];
+      if (matches.length > 0) {
+        str = matches.map(m => m[1]).join('\n');
+      }
+    } catch (e) {
+      console.error("Text sanitize error:", e);
+    }
+  }
+
+  // Unescape literal \n strings if present
+  str = str.replace(/\\n/g, '\n').replace(/\\r/g, '');
+  return str;
+};
+
 const formatMarkdown = (text) => {
   if (!text) return '';
+  let cleanText = sanitizeText(text);
 
-  let html = text
+  let html = cleanText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+
+  // Headings #, ##, ###
+  html = html.replace(/^# (.*$)/gim, '<h2 class="font-extrabold text-lg text-slate-900 mt-3 mb-1.5 border-b pb-1">$1</h2>');
+  html = html.replace(/^## (.*$)/gim, '<h3 class="font-bold text-base text-slate-900 mt-2.5 mb-1">$1</h3>');
+  html = html.replace(/^### (.*$)/gim, '<h4 class="font-bold text-sm text-slate-900 mt-2 mb-1">$1</h4>');
 
   // Bold text: **text**
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
@@ -16,11 +43,11 @@ const formatMarkdown = (text) => {
   // Italic text: *text*
   html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-700">$1</em>');
 
-  // Headers: ### Header
-  html = html.replace(/^### (.*$)/gim, '<h4 class="font-bold text-base text-slate-900 mt-2 mb-1">$1</h4>');
+  // Horizontal rules: ---
+  html = html.replace(/^---$/gim, '<hr class="my-2 border-slate-200"/>');
 
   // Bullet points: - item or * item
-  html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="ml-4 list-disc text-slate-800">$1</li>');
+  html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="ml-4 list-disc text-slate-800 my-0.5">$1</li>');
 
   // Newlines to breaks
   html = html.replace(/\n/g, '<br/>');
