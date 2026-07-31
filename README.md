@@ -141,5 +141,5 @@ npm run dev
 | `POST` | `/api/controller` | Session state control (CLEAR_SESSION, DELETE_FILE, GET_HISTORY) |
 
 
-5. Click **Deploy**. Vercel will build your static assets and provide a live public link for your portfolio!
+5. Click link Vercel will build your static assets and provide a live public link for your portfolio!
 6. https://health-care-chatagent-git-main-rajeshvanapalli77s-projects.vercel.app/
