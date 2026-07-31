@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import InputBox from './InputBox';
 import { 
-  Menu, Trash2, Stethoscope, Sparkles, ShieldCheck, 
+  Menu, Trash2, Stethoscope, Sparkles, ShieldCheck, MessageSquare,
   Thermometer, FileText, Pill, AlertTriangle, Globe, ArrowRight, UploadCloud
 } from 'lucide-react';
 
@@ -15,8 +15,10 @@ const ChatWindow = ({
   isLoading, 
   currentChat,
   onClearSession,
-  onToggleMobileSidebar 
+  onToggleMobileSidebar,
+  onOpenFeedback
 }) => {
+
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -91,14 +93,25 @@ const ChatWindow = ({
           </div>
         </div>
 
-        <button 
-          onClick={onClearSession}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-xl transition-all border border-rose-200/60 shadow-2xs"
-          title="Clear Backend Session Memory"
-        >
-          <Trash2 size={14} />
-          <span className="hidden sm:inline">Wipe Memory</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenFeedback}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
+            title="Submit Feedback & Review"
+          >
+            <MessageSquare size={14} className="text-teal-600" />
+            <span className="hidden sm:inline">Feedback & Reviews</span>
+          </button>
+
+          <button 
+            onClick={onClearSession}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-xl transition-all border border-rose-200/60 shadow-2xs"
+            title="Clear Backend Session Memory"
+          >
+            <Trash2 size={14} />
+            <span className="hidden sm:inline">Wipe Memory</span>
+          </button>
+        </div>
       </div>
 
       {/* Messages / Main Scroll Area */}

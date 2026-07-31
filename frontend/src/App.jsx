@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
+import FeedbackModal from './components/FeedbackModal';
+import AdminFeedbackDashboard from './components/AdminFeedbackDashboard';
 
 function App() {
   const [chats, setChats] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
 
   // Initialize from LocalStorage
   useEffect(() => {
@@ -74,7 +79,8 @@ function App() {
     }));
   };
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : '';
+
 
   const handleSend = async (customPrompt = null) => {
     const userText = typeof customPrompt === 'string' ? customPrompt.trim() : input.trim();
@@ -166,6 +172,8 @@ function App() {
         onDeleteChat={deleteChat}
         isOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
+        onOpenFeedback={() => setIsFeedbackModalOpen(true)}
+        onOpenAdmin={() => setIsAdminDashboardOpen(true)}
       />
       
       {currentChat ? (
@@ -179,14 +187,31 @@ function App() {
           currentChat={currentChat}
           onClearSession={clearSessionBackendMemory}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          onOpenFeedback={() => setIsFeedbackModalOpen(true)}
         />
       ) : (
         <div className="flex-1 flex items-center justify-center bg-[#F8FAFC]">
            <div className="text-gray-400">Loading Patient Portal...</div>
         </div>
       )}
+
+      {/* Customer Feedback & Reviews Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        sessionId={currentChatId}
+        apiBaseUrl={API_BASE_URL}
+      />
+
+      {/* Admin Feedback & Issue Review Dashboard Modal */}
+      <AdminFeedbackDashboard
+        isOpen={isAdminDashboardOpen}
+        onClose={() => setIsAdminDashboardOpen(false)}
+        apiBaseUrl={API_BASE_URL}
+      />
     </div>
   );
 }
 
 export default App;
+

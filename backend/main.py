@@ -14,6 +14,8 @@ from agents.graph import app as graph_app
 from agents.controller import invoke_controller
 from rag.pipeline import ingest_complex_document
 from database import add_message_to_history, get_chat_history_str, patient_files_store, add_patient_file
+from feedback_db import create_feedback, get_all_feedbacks, get_feedback_stats, update_feedback, delete_feedback
+
 
 app = FastAPI(title="Healthcare RAG API")
 
@@ -134,9 +136,77 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-# Mount frontend from the root-level frontend directory
-frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
-app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+# Feedback & Reviews Models and API Endpoints
+class FeedbackCreate(BaseModel):
+    name: str = "Anonymous Patient"
+    email: str = ""
+    rating: int
+    category: str
+    message: str
+    session_id: str = ""
+
+class FeedbackUpdate(BaseModel):
+    status: str = None
+    admin_notes: str = None
+
+@app.post("/api/feedback")
+async def submit_feedback(payload: FeedbackCreate):
+    if payload.rating < 1 or payload.rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
+    if not payload.message.strip():
+        raise HTTPException(status_code=400, detail="Feedback message cannot be empty.")
+        
+    res = await asyncio.to_thread(
+        create_feedback,
+        payload.name,
+        payload.email,
+        payload.rating,
+        payload.category,
+        payload.message,
+        payload.session_id
+    )
+    return {"status": "success", "feedback": res}
+
+@app.get("/api/feedback")
+async def list_feedbacks(category: str = "All", status: str = "All", rating: int = 0):
+    feedbacks = await asyncio.to_thread(get_all_feedbacks, category, status, rating)
+    return {"feedbacks": feedbacks}
+
+@app.get("/api/feedback/stats")
+async def feedback_stats():
+    stats = await asyncio.to_thread(get_feedback_stats)
+    return stats
+
+@app.patch("/api/feedback/{feedback_id}")
+async def patch_feedback(feedback_id: str, payload: FeedbackUpdate):
+    updated = await asyncio.to_thread(update_feedback, feedback_id, payload.status, payload.admin_notes)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Feedback item not found.")
+    return {"status": "success", "feedback": updated}
+
+@app.delete("/api/feedback/{feedback_id}")
+async def remove_feedback(feedback_id: str):
+    deleted = await asyncio.to_thread(delete_feedback, feedback_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Feedback item not found.")
+    return {"status": "success", "message": "Feedback deleted successfully."}
+
+# Mount frontend static build directory
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+frontend_dist = os.path.join(frontend_dir, "dist")
+root_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dist")
+
+if os.path.exists(frontend_dist):
+    static_dir = frontend_dist
+elif os.path.exists(root_dist):
+    static_dir = root_dist
+else:
+    static_dir = frontend_dir
+
+print(f"[SERVER] Mounting static UI directory: {static_dir}")
+app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+
+
 
 if __name__ == "__main__":
     print("[SERVER] Starting Healthcare RAG Backend and Frontend Server...")

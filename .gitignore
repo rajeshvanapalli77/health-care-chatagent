@@ -19,6 +19,9 @@ backend/chroma_chat_db/
 backend/faiss_index/
 backend/faiss_index_google/
 backend/extracted_images/
+backend/*.db
+*.db
+
 
 # Uploads
 backend/uploads/
