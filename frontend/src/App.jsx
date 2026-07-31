@@ -76,11 +76,11 @@ function App() {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-  const handleSend = async () => {
-    if (!input.trim() || !currentChatId) return;
+  const handleSend = async (customPrompt = null) => {
+    const userText = typeof customPrompt === 'string' ? customPrompt.trim() : input.trim();
+    if (!userText || !currentChatId) return;
 
-    const userText = input;
-    setInput('');
+    if (!customPrompt) setInput('');
     addMessageToCurrentChat({ text: userText, isUser: true });
     setIsLoading(true);
 

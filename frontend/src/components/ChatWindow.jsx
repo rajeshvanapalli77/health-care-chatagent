@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import InputBox from './InputBox';
-import { Menu, Trash2 } from 'lucide-react';
+import { 
+  Menu, Trash2, Stethoscope, Sparkles, ShieldCheck, 
+  Thermometer, FileText, Pill, AlertTriangle, Globe, ArrowRight, UploadCloud
+} from 'lucide-react';
 
 const ChatWindow = ({ 
   messages, 
@@ -20,50 +23,156 @@ const ChatWindow = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const quickPrompts = [
+    {
+      icon: Thermometer,
+      category: "Symptom Check",
+      title: "Fever & Chills",
+      prompt: "I have a fever of 101°F with body ache and chills. What should I do?",
+      color: "from-amber-500/10 to-orange-500/10 border-amber-200 text-amber-700 hover:border-amber-400"
+    },
+    {
+      icon: Pill,
+      category: "Medication Query",
+      title: "Paracetamol & Dosage",
+      prompt: "What is the recommended safe dosage for Paracetamol and what precautions should I take?",
+      color: "from-blue-500/10 to-indigo-500/10 border-blue-200 text-blue-700 hover:border-blue-400"
+    },
+    {
+      icon: FileText,
+      category: "Lab Analysis",
+      title: "CBC Blood Report",
+      prompt: "How do I read a Complete Blood Count (CBC) report and what do HIGH/LOW flags mean?",
+      color: "from-teal-500/10 to-emerald-500/10 border-teal-200 text-teal-700 hover:border-teal-400"
+    },
+    {
+      icon: AlertTriangle,
+      category: "Emergency Triage",
+      title: "Chest Pain Warning",
+      prompt: "I feel sudden chest pain and tightness. What are the immediate steps?",
+      color: "from-rose-500/10 to-red-500/10 border-rose-200 text-rose-700 hover:border-rose-400"
+    },
+    {
+      icon: Globe,
+      category: "Hindi Consult",
+      title: "हिंदी में पूछें",
+      prompt: "मुझे 2 दिन से सिर दर्द और हल्का बुखार है, मुझे क्या करना चाहिए?",
+      color: "from-purple-500/10 to-violet-500/10 border-purple-200 text-purple-700 hover:border-purple-400"
+    },
+    {
+      icon: Globe,
+      category: "Telugu Consult",
+      title: "తెలుగులో అడగండి",
+      prompt: "నాకు గత రెండు రోజులుగా జ్వరం మరియు తలనొప్పిగా ఉంది, ఏమి చేయాలి?",
+      color: "from-cyan-500/10 to-sky-500/10 border-cyan-200 text-cyan-700 hover:border-cyan-400"
+    }
+  ];
+
   return (
-    <div className="flex-1 flex flex-col h-full relative bg-[#F8FAFC]">
-      {/* Mobile Header / Top Bar */}
-      <div className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shrink-0 z-10 sticky top-0">
+    <div className="flex-1 flex flex-col h-full relative bg-slate-50/60 overflow-hidden">
+      {/* Top Navigation Bar / Header */}
+      <div className="h-16 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-4 md:px-8 shrink-0 z-20 sticky top-0 shadow-xs">
         <div className="flex items-center gap-3">
           <button 
             onClick={onToggleMobileSidebar}
-            className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg active:bg-gray-200 transition-colors"
+            className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl active:bg-slate-200 transition-colors"
             title="Open Consultations"
           >
             <Menu size={20} />
           </button>
           <div className="flex flex-col">
-            <h2 className="font-semibold text-gray-800 text-sm md:text-base">
-              {currentChat?.title || "New Consultation"}
+            <h2 className="font-bold text-slate-800 text-sm md:text-base tracking-tight flex items-center gap-2">
+              <span>{currentChat?.title || "New Consultation"}</span>
             </h2>
-            <span className="text-[10px] md:text-xs text-healthcare-600 font-medium flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-healthcare-500"></span>
-              Secure Session Active
+            <span className="text-[11px] text-teal-600 font-semibold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+              Secure HIPAA Session Active
             </span>
           </div>
         </div>
 
         <button 
           onClick={onClearSession}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-100"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-xl transition-all border border-rose-200/60 shadow-2xs"
           title="Clear Backend Session Memory"
         >
           <Trash2 size={14} />
-          <span className="hidden sm:inline">Clear Memory</span>
+          <span className="hidden sm:inline">Wipe Memory</span>
         </button>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 flex flex-col gap-6">
-        {messages.length === 0 ? (
-          <div className="m-auto flex flex-col items-center justify-center max-w-md text-center space-y-4 opacity-70">
-            <div className="w-16 h-16 bg-healthcare-50 rounded-2xl flex items-center justify-center text-healthcare-500 shadow-sm border border-healthcare-100 mb-2">
-              <span className="text-3xl">🩺</span>
+      {/* Messages / Main Scroll Area */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 flex flex-col gap-6 scroll-smooth">
+        {messages.length <= 1 ? (
+          <div className="max-w-4xl mx-auto w-full my-auto flex flex-col gap-6 py-4">
+            
+            {/* Hero Banner */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 via-teal-700 to-slate-900 text-white p-6 sm:p-8 shadow-xl shadow-teal-900/10">
+              <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-teal-400/20 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="relative z-10 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3 py-1 bg-white/15 backdrop-blur-md rounded-full text-xs font-bold tracking-wide uppercase text-teal-100 flex items-center gap-1.5 border border-white/20">
+                    <Sparkles size={13} className="text-teal-300" /> AI Healthcare Assistant
+                  </span>
+                  <span className="px-3 py-1 bg-emerald-500/20 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-200 border border-emerald-400/30 flex items-center gap-1">
+                    <ShieldCheck size={13} /> HIPAA Compliant
+                  </span>
+                </div>
+                
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
+                  How can I help with your health today?
+                </h1>
+                
+                <p className="text-sm sm:text-base text-teal-100/90 max-w-2xl leading-relaxed font-normal">
+                  Describe your symptoms, ask about medications, or securely upload your medical reports (PDF/Images) for instant AI analysis and clinical guidance.
+                </p>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-gray-800">How can I assist you today?</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Describe your symptoms, ask general health questions, or securely upload your lab reports and prescriptions for instant analysis.
-            </p>
+
+            {/* Quick Prompt Test Presets Section */}
+            <div className="flex flex-col gap-3 mt-2">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <Sparkles size={14} className="text-teal-500" />
+                  Quick Test Prompts (Click to Run)
+                </h3>
+                <span className="text-[11px] text-slate-400 font-medium">1-Click Execution</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {quickPrompts.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleSend(item.prompt)}
+                      disabled={isLoading}
+                      className={`group text-left p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-3 active:scale-[0.99] disabled:opacity-50 relative overflow-hidden`}
+                    >
+                      <div className="flex items-start justify-between w-full">
+                        <div className={`p-2.5 rounded-xl bg-gradient-to-br ${item.color} border shadow-2xs`}>
+                          <Icon size={18} />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                          {item.category}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-teal-600 transition-colors flex items-center justify-between">
+                          <span>{item.title}</span>
+                          <ArrowRight size={14} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-teal-600" />
+                        </h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                          "{item.prompt}"
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
         ) : (
           messages.map((msg, idx) => (
@@ -73,13 +182,14 @@ const ChatWindow = ({
         
         {isLoading && (
           <div className="flex gap-3 max-w-[85%]">
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border bg-healthcare-50 border-healthcare-200 text-healthcare-600">
-               <span className="animate-pulse">🏥</span>
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border bg-teal-50 border-teal-200 text-teal-600">
+               <Stethoscope size={20} className="animate-pulse" />
             </div>
-            <div className="bg-white text-gray-800 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border border-gray-100 flex items-center gap-1.5">
-               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            <div className="bg-white text-slate-800 rounded-2xl rounded-tl-xs px-5 py-4 shadow-sm border border-slate-200/80 flex items-center gap-2">
+               <span className="text-xs font-semibold text-teal-600 mr-1">AI Assistant Thinking</span>
+               <span className="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+               <span className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+               <span className="w-2 h-2 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
             </div>
           </div>
         )}

@@ -11,21 +11,21 @@ const ChatHistoryItem = ({ chat, isActive, onClick, onDelete }) => {
       onClick={onClick}
       className={`group relative flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ease-out
         ${isActive 
-          ? 'bg-healthcare-50 text-healthcare-900 border border-healthcare-100 shadow-sm' 
-          : 'text-gray-600 hover:bg-gray-50 border border-transparent hover:border-gray-100'
+          ? 'bg-teal-50 text-teal-950 border border-teal-200/80 shadow-2xs font-semibold' 
+          : 'text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200/60'
         }
       `}
     >
-      <MessageSquare size={16} className={isActive ? "text-healthcare-500" : "text-gray-400 group-hover:text-gray-600"} />
+      <MessageSquare size={16} className={isActive ? "text-teal-600" : "text-slate-400 group-hover:text-slate-600"} />
       
       <div className="flex-1 overflow-hidden flex flex-col">
-        <span className="text-sm font-medium truncate pr-6">{chat.title || "New Consultation"}</span>
-        <span className="text-[10px] text-gray-400">{new Date(chat.updatedAt).toLocaleDateString()}</span>
+        <span className="text-xs sm:text-sm font-medium truncate pr-6">{chat.title || "New Consultation"}</span>
+        <span className="text-[10px] text-slate-400">{new Date(chat.updatedAt).toLocaleDateString()}</span>
       </div>
 
       <button
         onClick={onDelete}
-        className={`absolute right-2 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100
+        className={`absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100
           ${isActive ? 'opacity-100' : ''}`}
         title="Delete chat"
       >
