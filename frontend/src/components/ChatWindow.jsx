@@ -58,6 +58,13 @@ const ChatWindow = ({
 
   const quickPrompts = [
     {
+      icon: FileText,
+      category: "Rx Prescription Demo",
+      title: "Doctor Prescription OCR",
+      prompt: "I uploaded my Doctor Prescription report. Please analyze the prescribed medications, dosages (1-0-1), administration timings, dietary rules, and precautions.",
+      color: "from-emerald-500/10 to-teal-500/10 border-emerald-200 text-emerald-700 hover:border-emerald-400"
+    },
+    {
       icon: Thermometer,
       category: "Symptom Check",
       title: "Fever & Chills",
@@ -91,13 +98,6 @@ const ChatWindow = ({
       title: "हिंदी में पूछें",
       prompt: "मुझे 2 दिन से सिर दर्द और हल्का बुखार है, मुझे क्या करना चाहिए?",
       color: "from-purple-500/10 to-violet-500/10 border-purple-200 text-purple-700 hover:border-purple-400"
-    },
-    {
-      icon: Globe,
-      category: "Telugu Consult",
-      title: "తెలుగులో అడగండి",
-      prompt: "నాకు గత రెండు రోజులుగా జ్వరం మరియు తలనొప్పిగా ఉంది, ఏమి చేయాలి?",
-      color: "from-cyan-500/10 to-sky-500/10 border-cyan-200 text-cyan-700 hover:border-cyan-400"
     }
   ];
 

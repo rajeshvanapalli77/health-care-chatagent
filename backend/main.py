@@ -123,6 +123,7 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
             # Save strictly to memory logic!
             add_patient_file(session_id, result_payload)
             # Add implicit chat message so Assistant knows about the file asynchronously
+            user_msg = f"[User uploaded personal file: {file.filename}]"
             summary_text = result_payload.get('extracted_data', {}).get('raw_text_summary')
             if not summary_text:
                 full_txt = result_payload.get('full_extracted_text', '')
