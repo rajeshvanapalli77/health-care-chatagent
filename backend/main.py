@@ -1,6 +1,5 @@
-import os
-import shutil
-from fastapi import FastAPI, HTTPException, UploadFile, File
+import asyncio
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -36,26 +35,29 @@ class ChatResponse(BaseModel):
     urgency: str
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks):
     if not os.environ.get("GOOGLE_API_KEY") or os.environ.get("GOOGLE_API_KEY") == "your_gemini_api_key_here":
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY is missing or invalid.")
         
     try:
-        # 1. Fetch chat history from Chroma
-        chat_history = get_chat_history_str(request.session_id)
+        # 1. Fetch chat history asynchronously in thread
+        chat_history = await asyncio.to_thread(get_chat_history_str, request.session_id)
         
-        # 2. Run graph predicting context and history
-        result = graph_app.invoke({
-            "question": request.query,
-            "session_id": request.session_id,
-            "chat_history": chat_history
-        })
+        # 2. Run graph concurrently in thread pool (non-blocking for FastAPI loop)
+        result = await asyncio.to_thread(
+            graph_app.invoke,
+            {
+                "question": request.query,
+                "session_id": request.session_id,
+                "chat_history": chat_history
+            }
+        )
         
-        # 3. Save conversation back to Chroma manually
         response_text = result.get("response", "No response generated.")
         
-        add_message_to_history(request.session_id, "user", request.query)
-        add_message_to_history(request.session_id, "assistant", response_text)
+        # 3. Offload DB history persistence to background tasks for instant response return!
+        background_tasks.add_task(add_message_to_history, request.session_id, "user", request.query)
+        background_tasks.add_task(add_message_to_history, request.session_id, "assistant", response_text)
         
         return ChatResponse(
             response=response_text,
@@ -79,7 +81,7 @@ async def upload_document(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         print(f"📄 Processing multimodal document: {file_path}")
-        result_payload = ingest_complex_document(file_path, uploader_type="HOSPITAL_ADMIN", mime_type=file.content_type)
+        result_payload = await asyncio.to_thread(ingest_complex_document, file_path, uploader_type="HOSPITAL_ADMIN", mime_type=file.content_type)
         
         return result_payload
     except Exception as e:
@@ -94,13 +96,13 @@ class ControllerPayload(BaseModel):
 @app.post("/api/controller")
 async def controller_endpoint(payload: ControllerPayload):
     try:
-        response = invoke_controller(payload.command_type, payload.model_dump(), payload.session_id)
+        response = await asyncio.to_thread(invoke_controller, payload.command_type, payload.model_dump(), payload.session_id)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/patient-upload")
-async def patient_upload(session_id: str, file: UploadFile = File(...)):
+async def patient_upload(session_id: str, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     if not os.environ.get("GOOGLE_API_KEY") or os.environ.get("GOOGLE_API_KEY") == "your_gemini_api_key_here":
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY is missing.")
         
@@ -111,20 +113,24 @@ async def patient_upload(session_id: str, file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         print(f"👤 Processing patient attachment: {file_path}")
-        result_payload = ingest_complex_document(file_path, uploader_type="PATIENT", mime_type=file.content_type)
+        result_payload = await asyncio.to_thread(ingest_complex_document, file_path, uploader_type="PATIENT", mime_type=file.content_type)
         
         if result_payload.get("status") != "REJECTED":
             # Save strictly to memory logic!
             add_patient_file(session_id, result_payload)
-            # Add implicit chat message so Assistant knows about the file
-            add_message_to_history(session_id, "user", f"[User uploaded personal file: {file.filename}]")
+            # Add implicit chat message so Assistant knows about the file asynchronously
+            user_msg = f"[User uploaded personal file: {file.filename}]"
             file_response_msg = f"Your file {file.filename} was securely processed for this session only.\n\nSummary:\n{result_payload.get('extracted_data', {}).get('raw_text_summary')}"
-            add_message_to_history(session_id, "assistant", file_response_msg)
+            
+            background_tasks.add_task(add_message_to_history, session_id, "user", user_msg)
+            background_tasks.add_task(add_message_to_history, session_id, "assistant", file_response_msg)
+            
             result_payload["chat_acknowledgement"] = file_response_msg
             
         return result_payload
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 
 # Mount frontend from the root-level frontend directory
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")

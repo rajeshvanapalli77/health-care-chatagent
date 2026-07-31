@@ -52,20 +52,30 @@ def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN
     # 1. Extract markdown and images (saving them to disk temporarily)
     md_text = pymupdf4llm.to_markdown(file_path, write_images=True, image_path=img_dir)
     
-    # 2. Process all image tags logically via Vision API
-    def replace_image_with_vision(match):
-        img_filename = match.group(1)
-        img_path = img_filename if os.path.isabs(img_filename) else os.path.join(img_dir, os.path.basename(img_filename))
-            
-        if os.path.exists(img_path):
-            print(f"👀 Utilizing Gemini Vision AI for chart/image: {img_path}")
-            return f"\n\n[DIAGRAM/CHART EXTRACTED DATA]: {describe_image(img_path)}\n\n"
-        return ""
+    from concurrent.futures import ThreadPoolExecutor
 
-    processed_md = re.sub(r'!\[.*?\]\((.*?)\)', replace_image_with_vision, md_text)
+    # 2. Process all image tags concurrently via Vision API
+    matches = list(re.finditer(r'!\[.*?\]\((.*?)\)', md_text))
+    if matches:
+        def process_match(match):
+            img_filename = match.group(1)
+            img_path = img_filename if os.path.isabs(img_filename) else os.path.join(img_dir, os.path.basename(img_filename))
+            if os.path.exists(img_path):
+                print(f"👀 Utilizing Gemini Vision AI for chart/image: {img_path}")
+                return (match.group(0), f"\n\n[DIAGRAM/CHART EXTRACTED DATA]: {describe_image(img_path)}\n\n")
+            return (match.group(0), "")
+
+        with ThreadPoolExecutor(max_workers=min(4, len(matches))) as executor:
+            replacements = dict(executor.map(process_match, matches))
+        
+        processed_md = md_text
+        for orig, rep in replacements.items():
+            processed_md = processed_md.replace(orig, rep)
+    else:
+        processed_md = md_text
     
     # Take chunk of text to prevent massive parsing overload
-    model_name = os.getenv("LLM_MODEL_NAME", "gemini-1.5-flash")
+    model_name = os.getenv("LLM_MODEL_NAME", "gemini-2.0-flash")
     temperature = float(os.getenv("LLM_TEMPERATURE", 0))
     admin_llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
     prompt = PromptTemplate(

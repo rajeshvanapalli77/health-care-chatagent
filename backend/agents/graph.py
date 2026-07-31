@@ -126,6 +126,24 @@ def generation_node(state: GraphState):
         print(f"Error in generation: {e}")
         return {"response": "I'm sorry, I'm having trouble generating a response right now."}
 
+from concurrent.futures import ThreadPoolExecutor
+
+def parallel_classify_and_retrieve_node(state: GraphState):
+    """Run intent classification and vector retrieval concurrently using multithreading for maximum speed."""
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_classify = executor.submit(classification_node, state)
+        future_retrieve = executor.submit(retrieval_node, state)
+        
+        classify_res = future_classify.result()
+        retrieve_res = future_retrieve.result()
+        
+    res = {}
+    if classify_res:
+        res.update(classify_res)
+    if retrieve_res:
+        res.update(retrieve_res)
+    return res
+
 def emergency_conditional(state: GraphState):
     """Route based on emergency status."""
     if state.get("is_emergency"):
@@ -136,18 +154,17 @@ def emergency_conditional(state: GraphState):
 workflow = StateGraph(GraphState)
 
 workflow.add_node("triage", triage_node)
-workflow.add_node("classify", classification_node)
-workflow.add_node("retrieve", retrieval_node)
+workflow.add_node("classify_and_retrieve", parallel_classify_and_retrieve_node)
 workflow.add_node("generate", generation_node)
 
 workflow.set_entry_point("triage")
 workflow.add_conditional_edges(
     "triage",
     emergency_conditional,
-    {"emergency": END, "safe": "classify"}
+    {"emergency": END, "safe": "classify_and_retrieve"}
 )
-workflow.add_edge("classify", "retrieve")
-workflow.add_edge("retrieve", "generate")
+workflow.add_edge("classify_and_retrieve", "generate")
 workflow.add_edge("generate", END)
 
 app = workflow.compile()
+
