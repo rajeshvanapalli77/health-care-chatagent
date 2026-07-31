@@ -63,43 +63,26 @@ def add_message_to_history(session_id: str, role: str, text: str):
         ids=[message_id]
     )
 
-def get_chat_history_str(session_id: str, limit: int = 6) -> str:
+def get_chat_history_str(session_id: str, limit: int = 4) -> str:
     """
-    Retrieves the chronological history for a specific session ID and returns it as a formatted string.
-    Since Chroma DB doesn't perfectly sort get() operations out of the box natively, 
-    we will pull everything for this session and sort it programmatically.
+    Retrieves recent history for a specific session ID fast.
     """
     try:
-        results = collection.get(
-            where={"session_id": session_id}
-        )
+        results = collection.get(where={"session_id": session_id})
         
         if not results or not results["documents"]:
             return "No previous chat history."
             
-        # Zip the results together
-        history_msgs = []
-        for i in range(len(results["ids"])):
-            history_msgs.append({
-                "role": results["metadatas"][i]["role"],
-                "text": results["documents"][i],
-                "timestamp": float(results["metadatas"][i]["timestamp"])
-            })
-            
-        # Sort chronologically
-        history_msgs = sorted(history_msgs, key=lambda x: x["timestamp"])
+        docs = results["documents"][-limit:]
+        metas = results["metadatas"][-limit:]
         
-        # Take the last 'limit' messages to prevent exceeding context bounds
-        recent_msgs = history_msgs[-limit:]
-        
-        # Format string
         formatted_history = []
-        for msg in recent_msgs:
-            role_display = "User" if msg["role"] == "user" else "Assistant"
-            formatted_history.append(f"{role_display}: {msg['text']}")
+        for i in range(len(docs)):
+            role_display = "User" if metas[i].get("role") == "user" else "Assistant"
+            formatted_history.append(f"{role_display}: {docs[i]}")
             
         return "\n".join(formatted_history)
         
     except Exception as e:
-        print(f"Error fetching Chroma history: {e}")
+        print(f"Error fetching history: {e}")
         return "No previous chat history."

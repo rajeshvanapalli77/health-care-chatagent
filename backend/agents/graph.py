@@ -141,7 +141,7 @@ def retrieval_node(state: GraphState):
         return {"hospital_context": "Knowledge base unreachable."}
 
 def generation_node(state: GraphState):
-    """Generate final response based on dual context."""
+    """Generate final response based on dual context with instant fallback."""
     prompt = PromptTemplate(
         template=MULTILINGUAL_HEALTHCARE_ASSISTANT_PROMPT,
         input_variables=["hospital_context", "patient_context", "chat_history", "query", "language", "session_id"]
@@ -161,31 +161,72 @@ def generation_node(state: GraphState):
         })
         return {"response": resp}
     except Exception as e:
-        print(f"[LLM Exception/Rate-Limit] {e}")
+        print(f"[LLM Fast-Path Fallback Activated] {e}")
         q_lower = state["question"].lower()
-        if any(w in q_lower for w in ["fever", "bukhar", "bukhār", "jwaram"]):
+
+        if any(w in q_lower for w in ["fever", "bukhar", "bukhār", "jwaram", "temperature", "chills"]):
             fallback_msg = (
                 "I understand you are experiencing a fever. Here is essential medical guidance:\n\n"
-                "**1. Rest & Hydration:** Drink plenty of fluids (water, ORS, soups) and rest adequately.\n"
-                "**2. Temperature Monitoring:** Measure your temperature periodically with a thermometer.\n"
-                "**3. Fever Management:** Over-the-counter fever reducers such as Paracetamol (Acetaminophen) may help lower body temperature.\n"
-                "**4. Red Flags:** Seek immediate medical care if your fever exceeds 103°F (39.4°C), lasts over 3 days, or is accompanied by difficulty breathing, severe headache, or neck stiffness.\n\n"
+                "**1. Rest & Hydration:** Drink plenty of fluids (water, ORS, clear broths) and get adequate rest.\n"
+                "**2. Temperature Monitoring:** Measure your body temperature periodically with a thermometer.\n"
+                "**3. Fever Management:** Over-the-counter fever reducers like Paracetamol (Acetaminophen) can help manage fever. Verify proper dosage.\n"
+                "**4. When to Seek Urgent Care:** Consult a doctor immediately if fever exceeds 103°F (39.4°C), lasts over 3 days, or is accompanied by difficulty breathing, severe headache, or confusion.\n\n"
                 "Please consult your doctor for a proper clinical evaluation."
             )
-        elif any(w in q_lower for w in ["headache", "sirdard", "thala noppi"]):
+        elif any(w in q_lower for w in ["headache", "sirdard", "thala noppi", "migraine"]):
             fallback_msg = (
-                "For headache relief, ensure you are well-hydrated, rest in a quiet, dark room, and limit screen exposure. "
-                "If the headache is severe, persistent, or accompanied by vision changes or stiffness, please consult a doctor immediately."
+                "For headache relief and management:\n\n"
+                "**1. Immediate Steps:** Rest in a quiet, dark room, stay well-hydrated, and limit screen time.\n"
+                "**2. Cold Compress:** Apply a cool compress to your forehead or neck.\n"
+                "**3. Medication:** Over-the-counter pain relievers like Paracetamol may help.\n"
+                "**4. Warning Signs:** Seek emergency care if the headache is sudden and severe ('thunderclap') or accompanied by vision loss, weakness, or neck stiffness.\n\n"
+                "Please consult a physician for persistent headaches."
             )
-        elif any(w in q_lower for w in ["cough", "cold", "khansi", "daggu"]):
+        elif any(w in q_lower for w in ["cough", "cold", "khansi", "daggu", "sore throat", "flu"]):
             fallback_msg = (
-                "For cough and cold symptoms, stay hydrated with warm fluids, try steam inhalation, and get rest. "
-                "Consult a healthcare professional if you experience high fever or shortness of breath."
+                "For cough and cold symptom relief:\n\n"
+                "**1. Hydration & Steam:** Drink warm fluids (herbal teas, warm water) and consider steam inhalation.\n"
+                "**2. Throat Care:** Gargle with warm salt water 2-3 times daily.\n"
+                "**3. Rest:** Allow your body adequate rest to fight off viral illness.\n"
+                "**4. Medical Note:** Consult a doctor if cough lasts over 2 weeks, produces blood, or causes shortness of breath.\n\n"
+                "Please consult your healthcare provider for clinical advice."
+            )
+        elif any(w in q_lower for w in ["paracetamol", "dosage", "medicine", "tablet", "pill", "dose", "drug"]):
+            fallback_msg = (
+                "Here is clinical information regarding Paracetamol (Acetaminophen):\n\n"
+                "**1. Indication:** Used for mild-to-moderate pain relief and fever reduction.\n"
+                "**2. Typical Adult Dose:** 500mg to 1000mg every 4 to 6 hours as needed (Maximum 4000mg per 24 hours).\n"
+                "**3. Precautions:** Avoid alcohol consumption. Do not take multiple products containing Acetaminophen simultaneously.\n"
+                "**4. Guidance:** Always check with a pharmacist or physician before starting medications.\n\n"
+                "Never exceed recommended dosages without medical supervision."
+            )
+        elif any(w in q_lower for w in ["cbc", "blood test", "report", "lab", "platelet", "wbc", "hemoglobin"]):
+            fallback_msg = (
+                "Regarding Complete Blood Count (CBC) and lab report interpretation:\n\n"
+                "**1. Main Metrics:**\n"
+                "   - **Hemoglobin / RBC:** Measures oxygen delivery (Low = Anemia).\n"
+                "   - **WBC:** Infection response (High = Infection or inflammation).\n"
+                "   - **Platelets:** Essential for blood clotting.\n"
+                "**2. Analysis:** Abnormal flags (HIGH/LOW) should always be evaluated alongside physical symptoms.\n"
+                "**3. Upload:** You can securely upload your report file using the attachment icon 📎 for detailed processing.\n\n"
+                "Please share your lab reports with your doctor for clinical correlation."
+            )
+        elif any(w in q_lower for w in ["stomach", "pet", "kaduploni", "nausea", "vomiting", "acidity"]):
+            fallback_msg = (
+                "For stomach discomfort or digestive issues:\n\n"
+                "**1. Dietary Advice:** Eat light, bland foods (toast, rice, bananas) and avoid spicy, fatty, or caffeinated items.\n"
+                "**2. Hydration:** Take small, frequent sips of water or ORS to prevent dehydration.\n"
+                "**3. Red Flags:** Seek immediate medical evaluation if experiencing severe sharp abdominal pain, persistent vomiting, or blood in stool.\n\n"
+                "Consult a doctor if symptoms persist beyond 24 hours."
             )
         else:
             fallback_msg = (
-                "I am here to assist with your health queries. For any active symptoms, please rest, stay well-hydrated, "
-                "and consult a medical professional for personalized advice."
+                "I am here to assist with your medical and health inquiries.\n\n"
+                "**General Guidance:**\n"
+                "1. **Monitor Symptoms:** Keep track of when symptoms started and any changes.\n"
+                "2. **Hydration & Rest:** Ensure adequate fluid intake and sufficient rest.\n"
+                "3. **Clinical Evaluation:** For active health concerns, consult a doctor or healthcare professional for diagnosis and treatment.\n\n"
+                "Please consult your doctor for personalized medical evaluation."
             )
         return {"response": fallback_msg}
 
