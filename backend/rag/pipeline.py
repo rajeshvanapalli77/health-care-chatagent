@@ -61,7 +61,7 @@ def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN
             img_filename = match.group(1)
             img_path = img_filename if os.path.isabs(img_filename) else os.path.join(img_dir, os.path.basename(img_filename))
             if os.path.exists(img_path):
-                print(f"👀 Utilizing Gemini Vision AI for chart/image: {img_path}")
+                print(f"[VISION] Utilizing Gemini Vision AI for chart/image: {img_path}")
                 return (match.group(0), f"\n\n[DIAGRAM/CHART EXTRACTED DATA]: {describe_image(img_path)}\n\n")
             return (match.group(0), "")
 
@@ -116,7 +116,7 @@ def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN
         }
         
         docs = [Document(page_content=c, metadata=metadata_payload) for c in chunks]
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         if os.path.exists(FAISS_DB_DIR):
             vector_store = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
             vector_store.add_documents(docs)
@@ -136,16 +136,13 @@ def setup_retriever():
         return None
 
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-        
         if os.path.exists(FAISS_DB_DIR):
+            embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
             vector_store = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
             return vector_store.as_retriever(search_kwargs={"k": 3})
             
-        # If no DB, initialize a dummy one
-        docs = [Document(page_content="No specific user health documents uploaded. Answer general medical questions based on common knowledge but always recommend consulting a doctor.", metadata={"source": "system"})]
-        vector_store = FAISS.from_documents(docs, embeddings)
-        return vector_store.as_retriever(search_kwargs={"k": 1})
+        # If no local DB folder exists yet, return None to avoid latency on dummy embedding API calls
+        return None
     except Exception as e:
         print(f"[ERROR] Failed to initialize retriever: {e}")
         return None

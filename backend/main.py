@@ -1,3 +1,5 @@
+import os
+import shutil
 import asyncio
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,7 +82,7 @@ async def upload_document(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        print(f"📄 Processing multimodal document: {file_path}")
+        print(f"[DOC] Processing multimodal document: {file_path}")
         result_payload = await asyncio.to_thread(ingest_complex_document, file_path, uploader_type="HOSPITAL_ADMIN", mime_type=file.content_type)
         
         return result_payload
@@ -112,7 +114,7 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        print(f"👤 Processing patient attachment: {file_path}")
+        print(f"[PATIENT] Processing patient attachment: {file_path}")
         result_payload = await asyncio.to_thread(ingest_complex_document, file_path, uploader_type="PATIENT", mime_type=file.content_type)
         
         if result_payload.get("status") != "REJECTED":
@@ -137,6 +139,6 @@ frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fronte
 app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 if __name__ == "__main__":
-    print("🚀 Starting Healthcare RAG Backend and Frontend Server...")
-    print("🌐 Access the beautiful UI at: http://localhost:8000")
+    print("[SERVER] Starting Healthcare RAG Backend and Frontend Server...")
+    print("[SERVER] Access the UI at: http://localhost:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)

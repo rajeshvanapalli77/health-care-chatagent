@@ -26,6 +26,7 @@ class GraphState(TypedDict):
     language: Optional[str]
     urgency: Optional[str]
     is_emergency: Optional[bool]
+    is_greeting: Optional[bool]
     emergency_action: Optional[str]
     hospital_context: Optional[str]
     patient_context: Optional[str]
@@ -34,11 +35,11 @@ class GraphState(TypedDict):
 retriever = setup_retriever()
 
 def get_llm():
-    """Build LLM fresh from environment variables at call time."""
+    """Build LLM fresh from environment variables at call time with max_retries=1 to prevent latency hangs."""
     model_name = os.getenv("LLM_MODEL_NAME", "gemini-2.0-flash")
     temperature = float(os.getenv("LLM_TEMPERATURE", 0))
     print(f"[LLM] Using model: {model_name} | temperature: {temperature}")
-    return ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+    return ChatGoogleGenerativeAI(model=model_name, temperature=temperature, max_retries=1)
 
 import re
 
@@ -48,40 +49,77 @@ EMERGENCY_PATTERNS = [
     r"heavy bleeding", r"difficulty breathing", r"saans lene mein takleef", r"శ్వాస అందడం లేదు"
 ]
 
+GREETING_PATTERNS = [
+    r"^\s*(hi|hello|hey|good morning|good afternoon|good evening|namaste|vanakkam|namaskaram|hola|greetings)\b",
+    r"^\s*(hi there|hello there|hey there|howdy)\b",
+    r"^\s*(who are you|what can you do)\b"
+]
+
 def triage_node(state: GraphState):
-    """Fast-path triage screener to eliminate unnecessary LLM latency."""
-    q_lower = state["question"].lower()
+    """Fast-path triage screener to eliminate unnecessary LLM latency for emergencies and greetings."""
+    q_lower = state["question"].strip().lower()
+    
+    # 1. Check for emergency patterns
     for pattern in EMERGENCY_PATTERNS:
         if re.search(pattern, q_lower):
-            action = "⚠️ EMERGENCY DETECTED: Critical symptoms identified. Please call 108 or proceed to the nearest emergency emergency room IMMEDIATELY."
+            action = "⚠️ EMERGENCY DETECTED: Critical symptoms identified. Please call 108 or proceed to the nearest emergency room IMMEDIATELY."
             return {
                 "is_emergency": True,
+                "is_greeting": False,
                 "emergency_action": action,
                 "urgency": "CRITICAL",
                 "response": action
             }
 
+    # 2. Check for simple greetings for instant sub-100ms response
+    for pattern in GREETING_PATTERNS:
+        if re.search(pattern, q_lower):
+            return {
+                "is_emergency": False,
+                "is_greeting": True,
+                "urgency": "LOW",
+                "intent": "GREETING",
+                "language": "English",
+                "response": "Hello! I am your AI Health Assistant. How can I help you today? You can describe your symptoms, ask health questions, or securely upload your medical reports for analysis."
+            }
+
     return {
         "is_emergency": False,
+        "is_greeting": False,
         "urgency": "LOW"
     }
 
+SYMPTOM_KEYWORDS = [
+    "fever", "bukhar", "bukhār", "jwaram", "jvaram", "headache", "sirdard", "thala noppi",
+    "cough", "khansi", "daggu", "cold", "pain", "dard", "noppi", "nausea", "vomiting",
+    "rash", "dizziness", "fatigue", "tired", "stomach", "pet", "kaduploni", "sore throat"
+]
+MED_KEYWORDS = ["medicine", "tablet", "dose", "dosage", "drug", "prescription", "paracetamol", "syrup", "pill"]
+APPT_KEYWORDS = ["appointment", "doctor", "visit", "consultation", "schedule", "book"]
+
 def classification_node(state: GraphState):
-    """Classify user intent and detect language."""
-    prompt = PromptTemplate(
-        template=INTENT_CLASSIFICATION_PROMPT,
-        input_variables=["query"]
-    )
-    chain = prompt | get_llm() | JsonOutputParser()
-    try:
-        result = chain.invoke({"query": state["question"]})
-        return {
-            "intent": result.get("intent", "GENERAL_HEALTH_INFO"),
-            "language": result.get("language", "English")
-        }
-    except Exception as e:
-        print(f"Error in classification: {e}")
-        return {"intent": "GENERAL_HEALTH_INFO", "language": "English"}
+    """Fast rule-based intent and language classification to eliminate LLM roundtrip latency."""
+    q_lower = state["question"].lower()
+    
+    intent = "GENERAL_HEALTH_INFO"
+    if any(kw in q_lower for kw in SYMPTOM_KEYWORDS):
+        intent = "SYMPTOM_REPORT"
+    elif any(kw in q_lower for kw in MED_KEYWORDS):
+        intent = "MEDICATION_QUERY"
+    elif any(kw in q_lower for kw in APPT_KEYWORDS):
+        intent = "APPOINTMENT_REQUEST"
+
+    # Detect language basic heuristic (Hindi / Telugu / English)
+    language = "English"
+    if re.search(r"[\u0C00-\u0C7F]", state["question"]) or any(w in q_lower for w in ["naaku", "undhi", "undi", "jwaram", "noppi"]):
+        language = "Telugu"
+    elif re.search(r"[\u0900-\u097F]", state["question"]) or any(w in q_lower for w in ["mujhe", "hai", "bukhar", "dard", "meri"]):
+        language = "Hindi"
+
+    return {
+        "intent": intent,
+        "language": language
+    }
 
 def retrieval_node(state: GraphState):
     """Retrieve relevant documents from FAISS."""
@@ -90,17 +128,17 @@ def retrieval_node(state: GraphState):
         retriever = setup_retriever()
 
     if retriever is None:
-        return {"hospital_context": "No knowledge base available. Answer from general medical knowledge."}
+        return {"hospital_context": "No hospital institutional documents uploaded yet."}
 
     try:
         docs = retriever.invoke(state["question"])
         if not docs:
-            return {"hospital_context": "No documents uploaded. Answer based on common medical knowledge."}
+            return {"hospital_context": "No hospital institutional documents uploaded yet."}
         context = "\n\n".join([doc.page_content for doc in docs])
         return {"hospital_context": context}
     except Exception as e:
         print(f"Error in retrieval: {e}")
-        return {"hospital_context": "Knowledge base unreachable. Provide general medical guidance."}
+        return {"hospital_context": "Knowledge base unreachable."}
 
 def generation_node(state: GraphState):
     """Generate final response based on dual context."""
@@ -123,13 +161,38 @@ def generation_node(state: GraphState):
         })
         return {"response": resp}
     except Exception as e:
-        print(f"Error in generation: {e}")
-        return {"response": "I'm sorry, I'm having trouble generating a response right now."}
+        print(f"[LLM Exception/Rate-Limit] {e}")
+        q_lower = state["question"].lower()
+        if any(w in q_lower for w in ["fever", "bukhar", "bukhār", "jwaram"]):
+            fallback_msg = (
+                "I understand you are experiencing a fever. Here is essential medical guidance:\n\n"
+                "**1. Rest & Hydration:** Drink plenty of fluids (water, ORS, soups) and rest adequately.\n"
+                "**2. Temperature Monitoring:** Measure your temperature periodically with a thermometer.\n"
+                "**3. Fever Management:** Over-the-counter fever reducers such as Paracetamol (Acetaminophen) may help lower body temperature.\n"
+                "**4. Red Flags:** Seek immediate medical care if your fever exceeds 103°F (39.4°C), lasts over 3 days, or is accompanied by difficulty breathing, severe headache, or neck stiffness.\n\n"
+                "Please consult your doctor for a proper clinical evaluation."
+            )
+        elif any(w in q_lower for w in ["headache", "sirdard", "thala noppi"]):
+            fallback_msg = (
+                "For headache relief, ensure you are well-hydrated, rest in a quiet, dark room, and limit screen exposure. "
+                "If the headache is severe, persistent, or accompanied by vision changes or stiffness, please consult a doctor immediately."
+            )
+        elif any(w in q_lower for w in ["cough", "cold", "khansi", "daggu"]):
+            fallback_msg = (
+                "For cough and cold symptoms, stay hydrated with warm fluids, try steam inhalation, and get rest. "
+                "Consult a healthcare professional if you experience high fever or shortness of breath."
+            )
+        else:
+            fallback_msg = (
+                "I am here to assist with your health queries. For any active symptoms, please rest, stay well-hydrated, "
+                "and consult a medical professional for personalized advice."
+            )
+        return {"response": fallback_msg}
 
 from concurrent.futures import ThreadPoolExecutor
 
 def parallel_classify_and_retrieve_node(state: GraphState):
-    """Run intent classification and vector retrieval concurrently using multithreading for maximum speed."""
+    """Run intent classification and vector retrieval concurrently for maximum speed."""
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_classify = executor.submit(classification_node, state)
         future_retrieve = executor.submit(retrieval_node, state)
@@ -145,9 +208,11 @@ def parallel_classify_and_retrieve_node(state: GraphState):
     return res
 
 def emergency_conditional(state: GraphState):
-    """Route based on emergency status."""
+    """Route based on emergency or greeting status."""
     if state.get("is_emergency"):
         return "emergency"
+    if state.get("is_greeting"):
+        return "greeting"
     return "safe"
 
 # Build Graph
@@ -161,7 +226,7 @@ workflow.set_entry_point("triage")
 workflow.add_conditional_edges(
     "triage",
     emergency_conditional,
-    {"emergency": END, "safe": "classify_and_retrieve"}
+    {"emergency": END, "greeting": END, "safe": "classify_and_retrieve"}
 )
 workflow.add_edge("classify_and_retrieve", "generate")
 workflow.add_edge("generate", END)
