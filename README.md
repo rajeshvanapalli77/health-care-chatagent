@@ -140,50 +140,6 @@ npm run dev
 | `POST` | `/api/upload` | Upload institutional hospital document (FAISS vector store) |
 | `POST` | `/api/controller` | Session state control (CLEAR_SESSION, DELETE_FILE, GET_HISTORY) |
 
----
 
-## 🐙 How to Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "feat: Production-ready Multilingual Healthcare RAG Chatbot with LangGraph & Gemini"
-git branch -M main
-git remote add origin https://github.com/rajeshvanapalli77/health-care-chatagent.git
-git push -u origin main
-```
-
----
-
-## 🌐 Free Public Deployment (Render & Vercel)
-
-You can deploy the entire application for **free** using Render (for the backend) and Vercel (for the frontend).
-
-### 1. Backend Deployment (Render - Free Web Service)
-1. Sign up/Log in to [Render](https://render.com/).
-2. Click **New +** > **Web Service**.
-3. Connect your GitHub repository (`health-care-chatagent`).
-4. Set the following configurations:
-   - **Name:** `healthcare-rag-backend`
-   - **Environment:** `Python`
-   - **Branch:** `main`
-   - **Root Directory:** `backend`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. In **Environment Variables**, add:
-   - `GOOGLE_API_KEY` = `your_actual_gemini_api_key`
-   - `LLM_MODEL_NAME` = `gemini-flash-latest`
-   - `LLM_TEMPERATURE` = `0`
-6. Click **Deploy Web Service**. Render will build and deploy your backend. Copy your deployed backend URL (e.g., `https://healthcare-rag-backend.onrender.com`).
-
-### 2. Frontend Deployment (Vercel - Free Static Site)
-1. Sign up/Log in to [Vercel](https://vercel.com/).
-2. Click **Add New** > **Project** and import your repository (`health-care-chatagent`).
-3. Configure the build settings:
-   - **Framework Preset:** `Vite`
-   - **Root Directory:** `frontend`
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-4. In **Environment Variables**, add:
-   - `VITE_API_URL` = (Paste your copied Render backend URL, e.g., `https://healthcare-rag-backend.onrender.com`)
 5. Click **Deploy**. Vercel will build your static assets and provide a live public link for your portfolio!
+6. https://health-care-chatagent-git-main-rajeshvanapalli77s-projects.vercel.app/
