@@ -36,13 +36,19 @@ def optimize_image_for_vision(image_path, max_dim=1024):
             return base64.b64encode(f.read()).decode('utf-8'), "image/jpeg"
 
 def describe_image(image_path, prompt_override=None):
-    """Use Gemini Vision to OCR and describe an extracted chart, document, or image with automatic multi-model quota fallback."""
+    """Use Gemini Vision to OCR documents and analyze physical injury/symptom photos with automatic multi-model quota fallback."""
     base64_image, image_mime = optimize_image_for_vision(image_path)
     
     prompt_text = prompt_override or (
-        "Describe this medical image, lab report, prescription, chart, or document in complete detail. "
-        "Extract ALL visible text, tables, test names, numerical values, reference ranges, units, "
-        "dates, hospital/doctor names, patient details, and notes concisely and accurately without omitting details."
+        "You are an expert clinical medical vision & document analyzer.\n"
+        "Analyze this uploaded image carefully:\n"
+        "1. IF TEXT / REPORT / PRESCRIPTION / LAB SCAN / DOCUMENT:\n"
+        "   - Perform complete OCR text extraction.\n"
+        "   - Extract ALL visible numbers, test names, lab values, reference ranges, drug names, dosages (e.g. 1-0-1), administration timings, and doctor notes.\n\n"
+        "2. IF PHYSICAL INJURY / SYMPTOM PHOTO (e.g., cut finger, wound, burn, skin rash, swelling, eye redness, lesion):\n"
+        "   - Identify and describe the visual physical findings: wound type (laceration/cut/burn/abrasion/rash), anatomical location (e.g. index finger), visible depth, bleeding/redness, and cleanliness.\n"
+        "   - Provide clear, immediate first-aid instructions, cleaning steps, warning signs for infection/stitches, and guidance on when to seek urgent medical care.\n\n"
+        "Provide a comprehensive, accurate clinical extraction."
     )
 
     msg = HumanMessage(
@@ -93,14 +99,15 @@ def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN
     is_image = (mime_type and mime_type.startswith("image/")) or ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".gif"]
     
     if is_image:
-        print(f"[VISION] Direct image upload detected ({file_path}). Processing via Gemini Vision OCR...")
+        print(f"[VISION] Direct image upload detected ({file_path}). Processing via Gemini Vision AI...")
         processed_md = describe_image(
             file_path,
             prompt_override=(
-                "You are an expert medical OCR scanner and document reader. "
-                "Carefully transcribe and extract ALL text, numbers, tables, lab results, diagnoses, "
-                "doctor comments, dates, patient details, and reference ranges from this image. "
-                "Provide a clean, full text representation of the document."
+                "You are an expert clinical medical vision scanner and document reader.\n"
+                "Analyze this uploaded image in detail:\n"
+                "1. IF TEXT / REPORT / PRESCRIPTION / LAB SCAN: Transcribe ALL text, numbers, tables, lab results, diagnoses, drug dosages (e.g. 1-0-1), and dates.\n"
+                "2. IF PHYSICAL INJURY / SYMPTOM PHOTO (e.g. cut finger, laceration, burn, rash, swelling, lesion): Identify wound type, anatomical location, depth, bleeding, cleanliness, and immediate first-aid instructions.\n"
+                "Provide a complete clinical summary and findings."
             )
         )
     else:
@@ -181,6 +188,13 @@ def ingest_complex_document(file_path: str, uploader_type: str = "HOSPITAL_ADMIN
 
     # Attach full extracted OCR/markdown text to metadata payload
     doc_metadata["full_extracted_text"] = processed_md
+
+    # Perform RAG text chunking on extracted text
+    if processed_md and len(processed_md) > 150:
+        splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
+        patient_chunks = splitter.split_text(processed_md)
+        doc_metadata["chunks"] = patient_chunks
+        doc_metadata["chunks_created"] = len(patient_chunks)
 
     if doc_metadata.get("status") == "REJECTED":
         return doc_metadata
