@@ -140,25 +140,46 @@ def retrieval_node(state: GraphState):
         print(f"Error in retrieval: {e}")
         return {"hospital_context": "Knowledge base unreachable."}
 
+FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite-preview-02-05"]
+
 def generation_node(state: GraphState):
-    """Generate final response based on dual context with instant fallback."""
+    """Generate final response based on dual context with model fallback and instant fast-path."""
     prompt = PromptTemplate(
         template=MULTILINGUAL_HEALTHCARE_ASSISTANT_PROMPT,
         input_variables=["hospital_context", "patient_context", "chat_history", "query", "language", "session_id"]
     )
-    chain = prompt | get_llm() | StrOutputParser()
-
+    
     p_context = get_patient_files_context(state.get("session_id", "default"))
+    input_vars = {
+        "hospital_context": state.get("hospital_context", "No specific institutional context available."),
+        "patient_context": p_context,
+        "chat_history": state.get("chat_history", "No prior history."),
+        "query": state["question"],
+        "language": state.get("language", "English"),
+        "session_id": state.get("session_id", "default")
+    }
+
+    primary_model = os.getenv("LLM_MODEL_NAME", "gemini-2.0-flash")
+    models_to_try = [primary_model] + [m for m in FALLBACK_MODELS if m != primary_model]
+    temperature = float(os.getenv("LLM_TEMPERATURE", 0))
+
+    for model_name in models_to_try:
+        try:
+            llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature, max_retries=1)
+            chain = prompt | llm | StrOutputParser()
+            resp = chain.invoke(input_vars)
+            if resp and "RESOURCE_EXHAUSTED" not in resp:
+                return {"response": resp}
+        except Exception as e:
+            print(f"[LLM MODEL FALLBACK - {model_name}] {e}")
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                continue
+            break
 
     try:
-        resp = chain.invoke({
-            "hospital_context": state.get("hospital_context", "No specific institutional context available."),
-            "patient_context": p_context,
-            "chat_history": state.get("chat_history", "No prior history."),
-            "query": state["question"],
-            "language": state.get("language", "English"),
-            "session_id": state.get("session_id", "default")
-        })
+        # Final attempt with get_llm
+        chain = prompt | get_llm() | StrOutputParser()
+        resp = chain.invoke(input_vars)
         return {"response": resp}
     except Exception as e:
         print(f"[LLM Fast-Path Fallback Activated] {e}")

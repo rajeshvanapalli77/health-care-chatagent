@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import InputBox from './InputBox';
 import HealthToolsModal from './HealthToolsModal';
+import SymptomCheckerModal from './SymptomCheckerModal';
 import { 
   Menu, Trash2, Stethoscope, Sparkles, ShieldCheck, MessageSquare,
   Thermometer, FileText, Pill, AlertTriangle, Globe, ArrowRight, Download, Activity
@@ -22,6 +23,7 @@ const ChatWindow = ({
 
   const messagesEndRef = useRef(null);
   const [isHealthToolsOpen, setIsHealthToolsOpen] = useState(false);
+  const [isSymptomCheckerOpen, setIsSymptomCheckerOpen] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -125,6 +127,16 @@ const ChatWindow = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI Symptom & Vitals Checker Button */}
+          <button
+            onClick={() => setIsSymptomCheckerOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
+            title="Open AI Symptom & Vitals Triage Checker"
+          >
+            <Stethoscope size={14} className="text-teal-600" />
+            <span className="hidden sm:inline">Symptom Checker</span>
+          </button>
+
           {/* Advanced Health Tools Button */}
           <button
             onClick={() => setIsHealthToolsOpen(true)}
@@ -273,6 +285,13 @@ const ChatWindow = ({
       <HealthToolsModal 
         isOpen={isHealthToolsOpen}
         onClose={() => setIsHealthToolsOpen(false)}
+      />
+
+      {/* Symptom Checker & Vitals Assessment Modal */}
+      <SymptomCheckerModal
+        isOpen={isSymptomCheckerOpen}
+        onClose={() => setIsSymptomCheckerOpen(false)}
+        onSendAssessment={(prompt) => handleSend(prompt)}
       />
     </div>
   );
