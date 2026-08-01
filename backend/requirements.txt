@@ -12,3 +12,4 @@ python-multipart
 pymupdf
 pymupdf4llm
 chromadb
+pillow

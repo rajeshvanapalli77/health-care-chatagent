@@ -106,73 +106,64 @@ const ChatWindow = ({
   return (
     <div className="flex-1 flex flex-col h-full relative bg-slate-50/60 overflow-hidden">
       {/* Top Navigation Bar / Header */}
-      <div className="h-16 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-4 md:px-8 shrink-0 z-20 sticky top-0 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-3 sm:px-6 shrink-0 z-20 sticky top-0 shadow-xs gap-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <button 
             onClick={onToggleMobileSidebar}
-            className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl active:bg-slate-200 transition-colors"
+            className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl active:bg-slate-200 transition-colors flex-shrink-0"
             title="Open Consultations"
           >
             <Menu size={20} />
           </button>
-          <div className="flex flex-col">
-            <h2 className="font-bold text-slate-800 text-sm md:text-base tracking-tight flex items-center gap-2">
-              <span>{currentChat?.title || "New Consultation"}</span>
+          <div className="flex flex-col min-w-0">
+            <h2 className="font-bold text-slate-800 text-xs sm:text-sm md:text-base tracking-tight truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-md">
+              {currentChat?.title || "New Consultation"}
             </h2>
-            <span className="text-[11px] text-teal-600 font-semibold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-              Secure HIPAA Session Active
+            <span className="text-[10px] sm:text-[11px] text-teal-600 font-semibold flex items-center gap-1 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse flex-shrink-0"></span>
+              <span className="truncate">Secure HIPAA Active</span>
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* AI Symptom & Vitals Checker Button */}
           <button
             onClick={() => setIsSymptomCheckerOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
             title="Open AI Symptom & Vitals Triage Checker"
           >
-            <Stethoscope size={14} className="text-teal-600" />
+            <Stethoscope size={14} className="text-teal-600 flex-shrink-0" />
             <span className="hidden sm:inline">Symptom Checker</span>
           </button>
 
           {/* Advanced Health Tools Button */}
           <button
             onClick={() => setIsHealthToolsOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 rounded-xl transition-all border border-indigo-200/80 shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 rounded-xl transition-all border border-indigo-200/80 shadow-2xs"
             title="Open Advanced Health Tools & BMI Calculators"
           >
-            <Activity size={14} className="text-indigo-600" />
+            <Activity size={14} className="text-indigo-600 flex-shrink-0" />
             <span className="hidden sm:inline">Health Tools</span>
           </button>
 
           {/* Export Report Button */}
           <button
             onClick={handleExportConsultation}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl transition-all border border-slate-200 shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl transition-all border border-slate-200 shadow-2xs"
             title="Export Consultation Transcript as TXT File"
           >
-            <Download size={14} className="text-slate-600" />
-            <span className="hidden sm:inline">Export</span>
+            <Download size={14} className="text-slate-600 flex-shrink-0" />
+            <span className="hidden md:inline">Export</span>
           </button>
 
           <button
             onClick={onOpenFeedback}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 rounded-xl transition-all border border-teal-200/80 shadow-2xs"
             title="Submit Feedback & Review"
           >
-            <MessageSquare size={14} className="text-teal-600" />
-            <span className="hidden sm:inline">Reviews</span>
-          </button>
-
-          <button 
-            onClick={onClearSession}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-xl transition-all border border-rose-200/60 shadow-2xs"
-            title="Clear Backend Session Memory"
-          >
-            <Trash2 size={14} />
-            <span className="hidden sm:inline">Wipe Memory</span>
+            <MessageSquare size={14} className="text-teal-600 flex-shrink-0" />
+            <span className="hidden md:inline">Reviews</span>
           </button>
         </div>
       </div>

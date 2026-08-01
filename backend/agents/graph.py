@@ -140,7 +140,7 @@ def retrieval_node(state: GraphState):
         print(f"Error in retrieval: {e}")
         return {"hospital_context": "Knowledge base unreachable."}
 
-FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite-preview-02-05"]
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-flash-lite-latest", "gemini-2.0-flash-lite"]
 
 def generation_node(state: GraphState):
     """Generate final response based on dual context with model fallback and instant fast-path."""

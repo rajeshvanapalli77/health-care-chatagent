@@ -124,12 +124,15 @@ async def patient_upload(session_id: str, background_tasks: BackgroundTasks, fil
             add_patient_file(session_id, result_payload)
             # Add implicit chat message so Assistant knows about the file asynchronously
             user_msg = f"[User uploaded personal file: {file.filename}]"
-            summary_text = result_payload.get('extracted_data', {}).get('raw_text_summary')
-            if not summary_text:
-                full_txt = result_payload.get('full_extracted_text', '')
-                summary_text = full_txt[:300] + "..." if len(full_txt) > 300 else full_txt
+            full_txt = result_payload.get('full_extracted_text', '')
+            if not full_txt:
+                full_txt = result_payload.get('extracted_data', {}).get('raw_text_summary', 'File processed successfully.')
                 
-            file_response_msg = f"Your file **{file.filename}** was securely processed for this session only.\n\n**Extracted Summary & Key Findings:**\n{summary_text}"
+            file_response_msg = (
+                f"### 📋 Medical Attachment Analysis: **{file.filename}**\n\n"
+                f"Your file was securely processed for this session.\n\n"
+                f"**Clinical Extraction & Prescription Readout:**\n\n{full_txt}"
+            )
             
             background_tasks.add_task(add_message_to_history, session_id, "user", user_msg)
             background_tasks.add_task(add_message_to_history, session_id, "assistant", file_response_msg)

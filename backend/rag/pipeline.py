@@ -15,7 +15,7 @@ import uuid
 
 FAISS_DB_DIR = os.path.join(os.path.dirname(__file__), "..", "faiss_index_google")
 
-FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite-preview-02-05"]
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-flash-lite-latest", "gemini-2.0-flash-lite"]
 
 def optimize_image_for_vision(image_path, max_dim=1024):
     """Resize & compress image before sending to Vision API to prevent token/quota exhaustion."""
@@ -53,10 +53,10 @@ def extract_clean_text(content):
         return "\n".join(parts)
     return str(content)
 
+import google.generativeai as genai
+
 def describe_image(image_path, prompt_override=None):
-    """Use Gemini Vision to OCR documents and analyze physical injury/symptom photos with automatic multi-model quota fallback."""
-    base64_image, image_mime = optimize_image_for_vision(image_path)
-    
+    """Use native Google GenAI SDK & Gemini Vision to OCR documents, prescriptions, and physical injury photos."""
     prompt_text = prompt_override or (
         "You are an expert clinical medical vision & document analyzer.\n"
         "Analyze this uploaded image carefully:\n"
@@ -69,6 +69,37 @@ def describe_image(image_path, prompt_override=None):
         "Provide a comprehensive, accurate clinical extraction."
     )
 
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if api_key:
+        try:
+            genai.configure(api_key=api_key)
+            from PIL import Image
+            img = Image.open(image_path)
+            img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+
+            for m_name in ["gemini-flash-latest", "gemini-2.0-flash", "gemini-flash-lite-latest", "gemini-2.0-flash-lite"]:
+                for attempt in range(3):
+                    try:
+                        print(f"[NATIVE VISION] Attempting OCR with PIL image on {m_name} (attempt {attempt + 1})...")
+                        gen_model = genai.GenerativeModel(m_name)
+                        res = gen_model.generate_content([prompt_text, img])
+                        if res and res.text and "RESOURCE_EXHAUSTED" not in res.text:
+                            return res.text
+                        break
+                    except Exception as ex:
+                        err_str = str(ex)
+                        print(f"[NATIVE VISION ERROR - {m_name} attempt {attempt + 1}] {ex}")
+                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+                            time.sleep(2 ** attempt)
+                            continue
+                        break
+        except Exception as e:
+            print(f"[NATIVE VISION FAILED] {e}")
+
+    # Fallback to ChatGoogleGenerativeAI with base64 data URL
+    base64_image, image_mime = optimize_image_for_vision(image_path)
     msg = HumanMessage(
         content=[
             {"type": "text", "text": prompt_text},
@@ -99,7 +130,6 @@ def describe_image(image_path, prompt_override=None):
                 time.sleep(0.5)
                 continue
 
-    print(f"[VISION FALLBACK ACTIVATED] Quota limit encountered: {last_err}")
     filename = os.path.basename(image_path)
     return (
         f"Medical attachment '{filename}' processed. "
